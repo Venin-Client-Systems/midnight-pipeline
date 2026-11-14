@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>space.venin.midnight-dashboard</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/python3</string>
+    <string>-B</string>
+    <string>/Users/YOU/Developer/midnight/midnight.py</string>
+    <string>dashboard</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/YOU/Developer/midnight</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/opt/homebrew/bin:/Users/YOU/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>PYTHONDONTWRITEBYTECODE</key><string>1</string>
+    <key>TZ</key><string>Australia/Adelaide</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>ProcessType</key><string>Standard</string>
+  <key>KeepAlive</key><true/>
+</dict>
+</plist>

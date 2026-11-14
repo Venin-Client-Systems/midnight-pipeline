@@ -1,0 +1,14 @@
+[
+  {
+    "id": "T001",
+    "kind": "feature",
+    "title": "Normalise labels",
+    "description": "Add normalize_label(value) to exampleapp/labels.py. Accept strings, strip surrounding whitespace and return lowercase. Raise TypeError for every non-string.",
+    "acceptance": [
+      "normalize_label('  HeLLo ') returns 'hello'.",
+      "normalize_label(3) raises TypeError.",
+      "Existing tests keep passing."
+    ],
+    "files": ["exampleapp/labels.py", "tests/test_unit_labels.py"]
+  }
+]

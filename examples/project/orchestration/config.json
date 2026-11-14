@@ -1,0 +1,15 @@
+{
+  "name": "ExampleApp",
+  "timezone": "Australia/Adelaide",
+  "window_start": "00:00",
+  "window_end": "09:00",
+  "worker_timeout_seconds": 720,
+  "cloud_timeout_seconds": 900,
+  "max_attempts_per_night": 24,
+  "max_cloud_calls_per_night": 0,
+  "max_failures_per_night": 8,
+  "product_dirs": ["exampleapp"],
+  "source_globs": ["exampleapp/*.py"],
+  "worker_allowed_patterns": ["exampleapp/*.py", "tests/test_*.py", "docs/*.md"],
+  "protected_test_files": ["tests/__init__.py"]
+}
