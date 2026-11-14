@@ -1102,11 +1102,29 @@ def render(view, detailed=False):
             print(f"  {row['date']} [{row['mode']}]: {row['summary']}")
 
 
+READ_HELP = {
+    "status": "What Midnight is doing now, when it runs next, and each project's progress",
+    "projects": "Connected projects and whether each is on the schedule",
+    "report": "Accepted work, what is next and review feedback",
+    "performance": "Attempts, acceptance and time for a run window",
+    "doctor": "Health report for the service, state files and projects",
+    "recover": "Repair interrupted runtime state without running a model",
+    "models": "The pinned local model; pin, unpin or trial another",
+    "quality": "Check results and review ratings",
+    "findings": "Open defects and debt found by quality assessments",
+    "improvement-history": "Quality measurements over time",
+    "rescue": "Cloud guidance episodes and their outcomes",
+    "incidents": "Problems the supervising services recorded",
+    "recovery-history": "What recovery did and when",
+    "repair-status": "Whether each task may be attempted again, and what would allow it",
+}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command")
     for command in ("status", "projects", "report", "performance", "doctor", "recover", "models", "quality", "findings", "improvement-history", "rescue",'incidents','recovery-history','repair-status'):
-        p = sub.add_parser(command)
+        p = sub.add_parser(command, help=READ_HELP[command])
         p.add_argument("project", nargs="?")
         p.add_argument("--json", action="store_true")
         if command == "performance":
@@ -1126,11 +1144,11 @@ def main():
     p = sub.add_parser("dashboard", help="Serve the read-only dashboard on this Mac")
     p.add_argument("--port", type=int, default=8766)
     for command in ("pause", "resume"):
-        p = sub.add_parser(command)
+        p = sub.add_parser(command, help="Stop after the current step" if command == "pause" else "Clear a pause")
         p.add_argument("project", nargs="?", help="Omit to control the whole Midnight pipeline")
     p = sub.add_parser("override", help="Inspect, set or cancel an expiring override")
     group = p.add_mutually_exclusive_group()
-    group.add_argument("--until", help="ISO date/time; local Adelaide time if offset omitted")
+    group.add_argument("--until", help="ISO date/time; the schedule timezone if offset omitted")
     group.add_argument("--for", dest="duration", help="Duration such as 2h or 30m")
     group.add_argument("--cancel", action="store_true")
     p.add_argument("--reason", default="Manual override via Midnight CLI")

@@ -82,82 +82,65 @@ guardian (separate launchd service, frozen copy of the source)
 
 Retry admission is described in [PROGRESS_RECOVERY.md](PROGRESS_RECOVERY.md). Run evidence is kept under `runtime/`, which Git ignores.
 
+## Quick start
+
+You need an Apple Silicon Mac, [Homebrew](https://brew.sh) Python (`brew install python`), and [Ollama](https://ollama.com) running with one coding model:
+
+```sh
+ollama pull qwen3-coder:30b      # about 19 GB; good on a 32 GB Mac. Any Ollama model with tool support works.
+```
+
+**1. Install**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Venin-Client-Systems/midnight-pipeline/main/install.sh | bash
+```
+
+This clones Midnight into `~/Developer/midnight`, picks the largest installed model that fits in memory, sets a nightly window (00:00 to 09:00, Monday to Friday, in your timezone), loads two background services and adds a `midnight` command. No sudo. Prefer to read before you run? It is the same as:
+
+```sh
+git clone https://github.com/Venin-Client-Systems/midnight-pipeline.git ~/Developer/midnight
+/opt/homebrew/bin/python3 ~/Developer/midnight/midnight.py setup
+```
+
+**2. Watch it work**
+
+```sh
+midnight try
+```
+
+Creates a tiny demo project, gives it one task and runs it straight away. In 15 to 40 minutes on a 32 GB Mac there is a new commit in `~/Developer/midnight-demo`, written by the local model, checked by your Mac and reviewed before it landed. Follow along with `midnight status` or the dashboard at <http://127.0.0.1:8766>.
+
+**3. Point it at your own project**
+
+```sh
+midnight init ~/code/myapp
+midnight add-task myapp \
+  --title "Reject empty usernames" \
+  --description "validate_username(name) in myapp/users.py must raise ValueError for an empty or whitespace-only name." \
+  --accept "validate_username('') raises ValueError." \
+  --accept "validate_username('ada') returns 'ada'." \
+  --file myapp/users.py --file tests/test_unit_users.py
+```
+
+That is it. The task runs in tonight's window, or now with `midnight override --for 60m --reason "run my task"`. In the morning, `midnight report` shows what was accepted and why anything was not.
+
+Midnight v0.1 works on **Python projects tested with `unittest`**. The full walkthrough, including how to write tasks a local model can finish, is in [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
+
 ## Requirements
 
 - A Mac with Apple Silicon. 32 GB of memory runs a 24–30B coding model; more memory means a better model and better results.
 - macOS (sandboxing uses `sandbox-exec`, scheduling uses launchd).
-- Python 3.12 or later, at `/opt/homebrew/bin/python3`.
-- [Ollama](https://ollama.com) on its default port.
+- Python 3.12 or later from Homebrew, at `/opt/homebrew/bin/python3`.
+- [Ollama](https://ollama.com) on its default port, with a model that supports tool calls.
 - Git. Optional: the GitHub CLI for pull-request delivery, and the Claude or Codex CLI for cloud guidance.
-
-## Install
-
-Setup is manual for now; a one-command installer is on the [roadmap](#roadmap). These steps mirror the reference installation.
-
-**1. Get Midnight**
-
-```sh
-mkdir -p ~/Developer && cd ~/Developer
-git clone https://github.com/Venin-Client-Systems/midnight-pipeline.git midnight
-cd midnight
-python3 -m unittest discover -s tests     # about four minutes; should end in OK
-```
-
-Midnight expects to live at `~/Developer/midnight`.
-
-**2. Give it a model**
-
-```sh
-ollama pull qwen3-coder:30b
-curl -s http://127.0.0.1:11434/api/tags      # note the model's name and full digest
-```
-
-Put that name and digest in the `baseline` entry of [`models.json`](models.json). Midnight pins the exact model it was told to use and refuses a silent swap. See [MODELS.md](MODELS.md) for qualifying a different model.
-
-**3. Connect a project**
-
-Your project needs a Git repository, a test suite, and three small files in an `orchestration/` directory. Copy them from [`examples/project/orchestration/`](examples/project/orchestration):
-
-| File | Purpose |
-| --- | --- |
-| `supervisor.py` | Ten lines that bind the project to Midnight. Change the project id. |
-| `config.json` | Schedule window, per-night limits, which paths the worker may edit, which tests are protected. |
-| `backlog.json` | Your tasks: a title, a description, acceptance criteria and the files in scope. |
-
-Then describe the project in [`projects.json`](projects.json): its path, a `state_dir` under `runtime/projects/`, and one sentence on why it exists. The entry shipped there is an example; replace it. [BACKENDS.md](BACKENDS.md) has the full contract.
-
-Write tasks the way you would brief a careful junior: one observable behaviour, the exact files, and acceptance criteria a test can prove.
-
-**4. Schedule it**
-
-```sh
-sed "s/YOU/$USER/g" examples/launchd/space.venin.midnight.plist            > ~/Library/LaunchAgents/space.venin.midnight.plist
-sed "s/YOU/$USER/g" examples/launchd/space.venin.midnight-dashboard.plist  > ~/Library/LaunchAgents/space.venin.midnight-dashboard.plist
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/space.venin.midnight.plist
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/space.venin.midnight-dashboard.plist
-```
-
-Set your timezone in the two plist files and in `projects.json` first. The default window is midnight to 09:00, Monday to Friday.
-
-The supervising guardian is a third, optional service installed by `install_guardian.py` from a committed checkout; see [RECOVERY.md](RECOVERY.md).
-
-**5. Check it**
-
-```sh
-python3 midnight.py doctor       # reports anything missing
-python3 midnight.py status       # what it will do next, and when
-open http://127.0.0.1:8766       # the dashboard
-```
-
-To try it now without waiting for midnight:
-
-```sh
-python3 midnight.py override --for 60m --reason "first run"
-```
 
 ## Everyday use
 
 ```sh
+midnight try                     # run a demo task now
+midnight init <path>             # connect a project
+midnight add-task <project> …    # add a task to its backlog
 midnight status                  # running, waiting, paused or offline, and why
 midnight report                  # accepted work, next tasks, review feedback
 midnight projects                # what is registered and scheduled
@@ -170,7 +153,7 @@ midnight repair-status --json    # why a task is or isn't allowed another attemp
 midnight cloud                   # cloud provider, budget and calls today
 ```
 
-`midnight` here is `python3 ~/Developer/midnight/midnight.py`; add a shell alias. Most read commands take `--json`.
+Setup installs the `midnight` command in `~/.local/bin`. Most read commands take `--json`. To remove Midnight: `midnight uninstall` (add `--purge` to delete run history too).
 
 ## What to expect
 
@@ -182,10 +165,10 @@ Midnight is experimental, and results track the local model.
 
 ## Roadmap
 
-- One-command installer and configurable install location (today: `~/Developer/midnight`, service labels `space.venin.midnight*`, and a GitHub organisation set in `git_delivery.py`)
+- Projects beyond Python and `unittest`
+- GitHub pull-request delivery for any organisation (today the organisation is a constant in `git_delivery.py`; local commits work everywhere)
 - Qualification and tuning for larger local models
 - Linux support (the sandbox and scheduler are macOS-specific today)
-- A project template generator
 
 If you run Midnight with a larger model, open an issue with what you saw. That is the most useful contribution right now.
 
@@ -201,6 +184,7 @@ If you run Midnight with a larger model, open an issue with what you saw. That i
 | `guardian.py`, `coordinator_install.py` | Supervision, release and rollback |
 | `coordinator.py`, `cloud_policy.py`, `cloud_rescue.py` | Optional cloud guidance and escalation |
 | `dashboard.py`, `dashboard/` | Read-only local dashboard |
+| `install.sh`, `setup_cli.py` | Installer and the `setup`, `init`, `add-task`, `try` commands |
 | `examples/` | launchd definitions and a sample project adapter |
 | `ralphy/` | Vendored task runner (MIT, see `ralphy/LICENSE`) |
 | `tests/`, `native_tests/` | Unit tests; tests that need the real sandbox |
@@ -208,6 +192,7 @@ If you run Midnight with a larger model, open an issue with what you saw. That i
 
 ## Documentation
 
+- [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md): install, first project, writing tasks, reading results, troubleshooting
 - [docs/OPERATIONS.md](docs/OPERATIONS.md): the operator's guide from the reference installation
 - [BACKENDS.md](BACKENDS.md): what a project must provide to be scheduled
 - [MODELS.md](MODELS.md): local model selection, qualification and memory admission
