@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "source_repository": "https://github.com/Venin-Client-Systems/autoissue.git",
+  "source_head": "dc00a4a0e048736a9e5b288657ec78e6258eb54e",
+  "source_worktree_dirty": true,
+  "copied_at": "2026-10-30T13:36:29.363410+00:00",
+  "description": "Retained Ralphy 3.3.0 shell runtime from the user Autoissue checkout. Source bytes copied unchanged. Dedicated run.sh supplies local-only scoped runtime adaptations.",
+  "files": [
+    {
+      "path": "LICENSE",
+      "sha256": "80eca28eb8114a696916e5c33bd8749ebe9b57a40271c7c659081a8f5620a0aa"
+    },
+    {
+      "path": "legacy/ralphy.sh",
+      "sha256": "268b06c09d9c6ff0b4e661aba8fbb3716b540265e6affed68cf07f5a263f0d77"
+    },
+    {
+      "path": "lib/args.sh",
+      "sha256": "8203839a0da201c3d04474a2c945af23d1fb5e653100dac0890c2675faff8bba"
+    },
+    {
+      "path": "lib/cleanup.sh",
+      "sha256": "b7ddcee5cfebf545af10cc18a623c0d97c9215a6d06e3cd0e9039d43a5a1f04d"
+    },
+    {
+      "path": "lib/config.sh",
+      "sha256": "60106c4c2f1ba4625933fd5fc48c8670b0432878869fe2f1850ebf350394703d"
+    },
+    {
+      "path": "lib/coordination.sh",
+      "sha256": "83f059a6cd7d15c97e683e6776aff0ab3d7bee5c8b20bf089b460527cb685ebb"
+    },
+    {
+      "path": "lib/cost.sh",
+      "sha256": "32635f27f98327cda0bae1afdb37a407c9946c0fbbac0c7c799ed5d1922ea49a"
+    },
+    {
+      "path": "lib/domain.sh",
+      "sha256": "edcf229671ea9135e72c03d7a2200775b97ba8373db25818a288dea708a29a9d"
+    },
+    {
+      "path": "lib/engines.sh",
+      "sha256": "aa253690ed61a4954902991470dc18616b341452d3d5b799d9598e67a3908f4d"
+    },
+    {
+      "path": "lib/execution.sh",
+      "sha256": "e0eddb83df3cf99370a74d5831337ff95fb76e2ac2cc2eb61dde626cd3e6e7ed"
+    },
+    {
+      "path": "lib/git.sh",
+      "sha256": "05ea6dc12a920d83fa7185beebcb6e024154fc8b86b562985af2294284460e30"
+    },
+    {
+      "path": "lib/github.sh",
+      "sha256": "1c95089ae34b4abe19a599e7f709c18d38beca43fb82556945f3aa5c74fb9c0a"
+    },
+    {
+      "path": "lib/guardrails.sh",
+      "sha256": "f68bc5134190668a00813f8f74e59c601accdecd5a9705e67f9793e08a41f36c"
+    },
+    {
+      "path": "lib/help.sh",
+      "sha256": "3e93d52d27a852f6cdd6c030d37d2923a3eb949b3b3481faebd94aa5bec742ba"
+    },
+    {
+      "path": "lib/main.sh",
+      "sha256": "67585ad2e44894340f3d59381e2a62ae776bf2ec8d48827bb616921747f99bd9"
+    },
+    {
+      "path": "lib/monitor.sh",
+      "sha256": "b63d69dae6f2acfd430a5f6029a99fa274751e0bfc591789801d2c6add695d2a"
+    },
+    {
+      "path": "lib/notifications.sh",
+      "sha256": "f40b7300fa5822c949146e7e0c2d229dd011d41df10aa05c5f48765e18d7e6a3"
+    },
+    {
+      "path": "lib/parallel.sh",
+      "sha256": "1e55cf96ee3842ac281cbfcb7b3ca6d013297f501f4226fabd0494afbc2edc52"
+    },
+    {
+      "path": "lib/preflight.sh",
+      "sha256": "b63f847c4de0437d102deafe564d214b360b5181f6426b83a240057bb840c4df"
+    },
+    {
+      "path": "lib/prompt.sh",
+      "sha256": "b9bbdf6024090239776af5a2bed1b2cf5b89f5a33cf7442f80e4912d53ef1e82"
+    },
+    {
+      "path": "lib/sources/dispatch.sh",
+      "sha256": "38a324952b38971b581d7acd19da741ca3811f5a1836e9b78a88797ed6d60e9d"
+    },
+    {
+      "path": "lib/sources/github.sh",
+      "sha256": "34365eddc3585c385e19c61fe15e0c8565c9d90f55efdb1460149119176f39d9"
+    },
+    {
+      "path": "lib/sources/markdown.sh",
+      "sha256": "2f4c7df99770775e6dc37f1104249cccc0be539824250e20c4b993865f7bd0c8"
+    },
+    {
+      "path": "lib/sources/yaml.sh",
+      "sha256": "75299906bf735c850491203423dfc1f48a8f4d20097d62245e20687645e37f12"
+    },
+    {
+      "path": "lib/summary.sh",
+      "sha256": "60a7ba37591989b92742afa85f2186ababd7cdda43bb92c3e0c34c7f56d26ee2"
+    },
+    {
+      "path": "lib/utils.sh",
+      "sha256": "0b79f05106ae18f0c2be00d3a1869aa05efc79adc760b2e710e4ef34dee21aff"
+    }
+  ]
+}

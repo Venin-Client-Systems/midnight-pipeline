@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Midnight · VENIN</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
+</head>
+<body>
+<header><a href="/" class="brand">Midnight<span>VENIN</span></a><div class="controls"><button id="pause">Pause</button><button id="refresh">Refresh</button></div></header>
+<main>
+<div id="error" role="alert" hidden></div><p id="action-result" role="status" aria-live="polite"></p>
+<section class="intro" aria-label="Current status"><h1 id="headline">Checking Midnight</h1><p id="happening">Reading the latest saved evidence</p><p id="window" class="muted"></p><p id="checked" class="muted"></p></section>
+<section aria-labelledby="needs-title"><h2 id="needs-title">Needs you</h2><div id="needs"></div></section>
+<section aria-labelledby="cloud-title"><h2 id="cloud-title">Cloud models</h2><div class="cloud-selection"><label for="primary">Main</label><select id="primary"><option value="claude">Claude Fable 5.2</option><option value="codex">Codex gpt-6-astra</option></select><p id="fallback"></p></div><div id="providers" class="columns"></div></section>
+<section aria-labelledby="now-title"><h2 id="now-title">Now</h2><div id="now"></div></section>
+<section aria-labelledby="backlog-title"><h2 id="backlog-title">Backlog</h2><p id="backlog-count" class="muted"></p><div id="backlog"></div></section>
+<section aria-labelledby="coordinator-title"><h2 id="coordinator-title">Coordinator log</h2><p id="coordinator-mode" class="muted"></p><div id="decisions"></div></section>
+<section aria-labelledby="history-title"><h2 id="history-title">History</h2><div id="history"></div><h3>Sessions</h3><div id="sessions"></div><a href="/api/sessions.csv" download>Download session history</a></section>
+<section aria-labelledby="system-title"><h2 id="system-title">System</h2><div id="system"></div><div id="telemetry" class="numbers"></div><p id="telemetry-note" class="muted"></p></section>
+</main><footer>Local oversight · <a href="/api/oversight">Read the evidence as JSON</a></footer>
+</body></html>

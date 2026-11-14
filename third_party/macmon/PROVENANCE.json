@@ -1,0 +1,22 @@
+{
+  "repository": "https://github.com/vladkens/macmon",
+  "revision": "7df49f55d9a1b9072e31fc8ba991abda84593563",
+  "release": "v0.9.0",
+  "licence": "MIT",
+  "sources": [
+    {
+      "path": "src/sources.rs",
+      "sha256": "8b8ff35a5543c7efa08b025062ac0c61208fc0fb7a0815d4f89cd906e69d4502"
+    },
+    {
+      "path": "src/metrics.rs",
+      "sha256": "d9975904c4a16fb5e2cdb7268f6cb809cba0b79ae8a8c5303d7ddc98ab3976db"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "65f575b0127a4383e4710c5ffefe2c5a9ab906231013f42ba899f3fa9b9fdaaf"
+    }
+  ],
+  "reuse": "Ported AppleSMC ABI/read transport, declared numeric decoders and CPU/GPU/fan key selection to a small standard-library ctypes helper. Kept upstream attribution. Added bounds, failure isolation, scalar validation, read-only command allowlist, finite/range filtering and explicit partial readings.",
+  "updates": "Review upstream source and licence changes, native ABI, sensor grouping and host tests before updating. No upstream binary/dependency or fan-control method is bundled."
+}

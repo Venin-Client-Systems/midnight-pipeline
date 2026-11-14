@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "name": "Midnight",
+  "timezone": "Australia/Adelaide",
+  "schedule": {
+    "start": "00:00",
+    "end": "09:00",
+    "weekdays": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri"
+    ]
+  },
+  "projects": [
+    {
+      "id": "exampleapp",
+      "name": "ExampleApp",
+      "on_schedule": true,
+      "path": "/Users/example/Developer/exampleapp",
+      "state_dir": "/Users/example/Developer/midnight/runtime/projects/exampleapp",
+      "controller": "orchestration/supervisor.py",
+      "backlog": "orchestration/backlog.json",
+      "config": "orchestration/config.json",
+      "brief": "ROADMAP.md",
+      "why": "Example entry: a small command-line tool kept healthy by unattended overnight work.",
+      "instruction": "Continuously improve the shipped product. Reassess existing capabilities, correctness, reliability and material technical debt before admitting new features; preserve verified findings and regression history. Give the local worker one observable behaviour per task, retain explicit file scope and complete acceptance oracles, and prefer suitable licensed open-source reuse.",
+      "local_model": "local-coder:context32 (Qwen3-Coder 30B)",
+      "automation_id": "AUT-0004",
+      "backend_protocol": 5,
+      "quality_profile": "quality_profiles/exampleapp.json",
+      "github": {
+        "enabled": true,
+        "repository": "example-org/exampleapp",
+        "identity": "example-delivery-account",
+        "base": "main"
+      }
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "enabled": true,
+  "audit_seconds": 60,
+  "runnable_idle_seconds": 120,
+  "unexplained_block_seconds": 300,
+  "stale_hold_seconds": 3600,
+  "stale_hold_renotify_seconds": 21600,
+  "maintenance_attempts_per_incident": 4,
+  "maintenance_recovery": {
+    "version": 2,
+    "activation": "reviewed_coordinator_release",
+    "admission": "one_use_verified_intervention",
+    "legacy_attempt_limit": 4,
+    "historical_charges": "preserved",
+    "unchanged_evidence": "park_and_observe"
+  },
+  "maintenance_timeout_seconds": 1200,
+  "review_timeout_seconds": 900,
+  "checks_timeout_seconds": 600,
+  "max_patch_lines": 1200,
+  "max_patch_files": 12,
+  "repository": "example-org/midnight",
+  "identity": "example-delivery-account",
+  "source_files": [
+    "midnight.py",
+    "project_backend.py",
+    "control_status.py",
+    "operation_status.py",
+    "profile_evidence.py",
+    "dashboard.py",
+    "dashboard_details.py",
+    "dashboard_events.py",
+    "history_maintenance.py",
+    "manager_recovery.py",
+    "local_worker.py",
+    "structured_worker.py"
+  ],
+  "protected_contract": "Preserve schedule, expiring overrides, owner pauses, project scope, acceptance checks, independent review, exact source binding, product rescue limits, private PR delivery and all resource and repair budgets. Existing tests and policy files are immutable. New tests may be added."
+}

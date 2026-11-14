@@ -1,0 +1,13 @@
+Midnight
+Copyright 2026 Venin Client Systems
+
+This product includes software developed at VENIN (https://venin.space).
+
+Third-party components:
+
+- ralphy/ is a retained copy of the Ralphy 3.3.0 shell runtime from Autoissue,
+  Copyright (c) 2026 Venin Client Systems, under the MIT License
+  (ralphy/LICENSE, ralphy/PROVENANCE.json).
+- hardware_sensors.py adapts the SMC ABI, read protocol and sensor groups of
+  macmon v0.9.0 (https://github.com/vladkens/macmon), under the MIT License
+  (third_party/macmon/LICENSE, third_party/macmon/PROVENANCE.json).

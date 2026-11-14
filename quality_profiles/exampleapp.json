@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "id": "exampleapp-shipped-quality",
+  "version": 2,
+  "owner": "coordinator",
+  "project_id": "exampleapp",
+  "freshness_seconds": 86400,
+  "assessment_intervals": {"daily": 86400, "weekly": 604800, "monthly": 2592000},
+  "capabilities": [
+    {"id": "cross-tenant-read", "status": "shipped", "description": "Synthetic vulnerable, protected and inconclusive API authorisation observations"},
+    {"id": "module-discovery", "status": "shipped", "description": "Text and JSON module catalogue, search and descriptions"},
+    {"id": "finding-json", "status": "shipped", "description": "Structured findings with redacted observation evidence"},
+    {"id": "loopback-lab", "status": "shipped", "description": "Vulnerable/corrected loopback fixtures and documented CLI exit codes"},
+    {"id": "module-sdk", "status": "shipped", "description": "Accepted F006 immutable module metadata and versioned results with validated identifiers, statuses, severities and operator-safe evidence contract"},
+    {"id": "module-registry", "status": "shipped", "description": "Accepted F007 explicit module registration and dispatch through injected runners, duplicate rejection, preserved registration order and matching result identity"},
+    {"id": "bounded-loopback-transport", "status": "shipped", "description": "Accepted T008 finite positive HTTP timeouts and exact positive integer response limits, preserving numeric-loopback scope and bounded JSON responses"}
+  ],
+  "contracts": [
+    {"id": "development-boundaries", "path": "AGENTS.md", "requirements": ["Synthetic loopback fixtures only for autonomous execution", "Preserve protected tests", "Do not disclose credentials or private response bodies"]},
+    {"id": "transport", "path": "exampleapp/transport.py", "requirements": ["Loopback only", "Bounded responses", "No redirects or environment proxies", "Transport/authentication uncertainty remains inconclusive", "T008 requires finite positive numeric timeout and positive integer max_body, rejecting booleans and invalid limits before any request"]},
+    {"id": "sdk-f006", "path": "exampleapp/sdk.py", "requirements": ["F006 in docs/FRAMEWORK_CONTRACTS.md: frozen ModuleSpec and ModuleResult", "Validate IDs, required text, categories, boolean flags, result status and severity", "Serialize versioned JSON-compatible evidence without claiming automatic redaction of arbitrary caller text"]},
+    {"id": "registry-f007", "path": "exampleapp/registry.py", "requirements": ["F007 in docs/FRAMEWORK_CONTRACTS.md: explicit registration without dynamic plugin discovery", "Reject duplicate IDs and invalid runners; preserve registration order", "Copy caller options, require matching ModuleResult identity, and propagate operational exceptions"]},
+    {"id": "cli", "path": "exampleapp/cli.py", "requirements": ["Vulnerable exits 1", "Protected exits 0", "Inconclusive/usage exits 2"]},
+    {"id": "shipped-scope", "path": "ROADMAP.md", "requirements": ["Future framework contracts remain plans until an accepted commit and checks establish delivery"]}
+  ],
+  "checks": [
+    {"id": "full-regression", "required": true, "command": ["python3", "-m", "unittest", "discover", "-v"], "timeout_seconds": 240},
+    {"id": "operator-lab", "required": true, "command": ["python3", "-m", "unittest", "tests.test_lab_cli", "tests.test_lab_checks", "-v"], "timeout_seconds": 120},
+    {"id": "module-cli", "required": true, "command": ["python3", "-m", "exampleapp", "modules", "list", "--json"], "timeout_seconds": 30}
+  ],
+  "workflows": [
+    {"id": "inspect-modules", "check_ids": ["module-cli", "full-regression"]},
+    {"id": "vulnerable-corrected-inconclusive-lab", "check_ids": ["operator-lab", "full-regression"]},
+    {"id": "programmatic-module-registration-and-dispatch", "check_ids": ["full-regression"]},
+    {"id": "bounded-loopback-request-contract", "check_ids": ["operator-lab", "full-regression"]}
+  ],
+  "metrics": [
+    {"id": "required_check_pass_fraction", "source": "saved required host-check receipts for the exact canonical head", "definition": "passed required checks divided by all required profile checks; unavailable checks remain in the denominator", "periods": ["daily", "weekly", "monthly"]},
+    {"id": "workflow_coverage_fraction", "source": "declared shipped workflows and their actual check receipts", "definition": "workflows whose declared checks all passed divided by declared workflows; measures the synthetic coverage in this profile, not all real-world workflows", "periods": ["daily", "weekly", "monthly"]},
+    {"id": "workflow_duration_seconds", "source": "host-measured elapsed execution of declared workflow checks", "definition": "synthetic test-harness duration, not measured end-user product latency", "periods": ["daily", "weekly", "monthly"]},
+    {"id": "open_material_findings", "source": "open shipped-product defect and debt findings; exhausted repairs remain open", "periods": ["daily", "weekly", "monthly"]}
+  ],
+  "pipeline_metrics": [
+    {"id": "acceptance_rate", "source": "indexed accepted-commit receipts and run outcomes", "scope": "development pipeline; does not establish product quality"},
+    {"id": "local_attempts", "source": "indexed local worker run receipts", "scope": "development pipeline"},
+    {"id": "cloud_attempts", "source": "indexed cloud implementation run receipts", "scope": "development pipeline"}
+  ],
+  "unmeasured_product_outcomes": [
+    "End-user workflow latency and setup effort outside the synthetic harness",
+    "Real home-lab finding accuracy and false positives outside supplied fixtures",
+    "User-observed usability and comparative effectiveness against external tools"
+  ],
+  "profile_update_rule": "Coordinator updates and increments this profile after an accepted capability changes shipped scope, contracts, checks or workflows. Workers cannot edit the profile. Its content hash binds admission and promotion."
+}

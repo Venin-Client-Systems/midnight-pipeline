@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "providers": {
+    "codex": {"label": "Codex", "provider": "openai", "backend": "codex"},
+    "claude": {"label": "Claude", "provider": "anthropic", "backend": "claude", "model": "claude-fable-5-2", "reasoning_effort": "max"}
+  },
+  "default_primary": "claude",
+  "fallback": true,
+  "breaker_seconds": 1800,
+  "claude_implementation": false
+}

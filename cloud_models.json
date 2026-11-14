@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "incumbent": {"model": "gpt-6-astra", "reasoning_effort": "ultra", "provider": "openai"},
+  "discovery_interval_seconds": 86400,
+  "canary_decisions": 10,
+  "official_sources": ["https://developers.openai.com/codex/changelog/", "https://learn.chatgpt.com/docs/models"],
+  "policy": {"fallback": false, "max_analysis_children": 2, "max_depth": 1, "implementation_writers": 1, "command_network": false},
+  "rescue": {"local_failures_before_guidance": 2, "guided_local_failures": 2, "project_attempts": 3, "window_seconds": 604800, "automatic_attempts_per_episode": 1}
+}
