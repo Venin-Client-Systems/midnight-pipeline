@@ -1,0 +1,357 @@
+"""Independent, bounded Midnight health audit. No inference on read paths.
+
+Installed from a verified frozen source bundle, independent of controller
+imports. Stable incidents retain their charged repair budget across releases.
+"""
+import argparse
+import datetime as dt
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import time
+import urllib.request
+import uuid
+from zoneinfo import ZoneInfo
+import durability as D
+from action_store import Actions, fingerprint
+import phase_runtime as P
+import project_action as PA
+import evidence_context as E
+
+ROOT=Path(os.environ.get('MIDNIGHT_CANONICAL_ROOT',Path(__file__).resolve().parent))
+INSTALL_ROOT=Path.home()/'Developer'/'midnight'
+POLICY=json.loads((Path(__file__).resolve().parent/'recovery_policy.json').read_text())
+
+
+def window(registry,override,instant):
+    if override and override.get('mode')=='continuous' and override.get('expires_at') is None:return True
+    local=instant.astimezone(ZoneInfo(registry['timezone']))
+    start=dt.time.fromisoformat(registry['schedule']['start']);end=dt.time.fromisoformat(registry['schedule']['end'])
+    ordinary=start<=local.timetz().replace(tzinfo=None)<end if start<end else local.time()>=start or local.time()<end
+    expiry=override.get('expires_at')
+    return ordinary or bool(expiry and instant<dt.datetime.fromisoformat(expiry))
+
+
+def read(path,default=None):return D.read_json(path,{} if default is None else default)
+
+
+def expected_project_wait(project,instant):
+    status=project.get('status',{});typed=status.get('control',{})
+    retry=typed.get('next_retry_at') or status.get('retry_after') or project.get('state',{}).get('cooldown_until')
+    if retry:
+        try:
+            if instant<dt.datetime.fromisoformat(retry):return True
+        except (ValueError,TypeError):pass
+    return bool(project.get('paused') or status.get('phase') in {
+        'waiting_for_midnight','paused','nightly_allowance_reached','finishing_before_09:00',
+        'waiting_for_provider','pending_delivery',
+        'manager_hold','quality_wait','no_useful_work','quality_profile_pending',
+        'quality_profile_needs_manager','profile_needs_manager','profile_update_pending'}
+        or typed.get('recovery_owner') in {'owner','provider'}
+        or typed.get('code') in {'feature_gate_held','rescue_manager_held','planning_no_change','quality_gate','manager_hold','planner_hold'})
+
+
+def observation(root,instant):
+    runtime=root/'runtime';registry=read(root/'projects.json');override=read(runtime/'override.json')
+    if not registry.get('projects'):raise ValueError('Project register is unavailable')
+    store=Actions(runtime);jobs=store.jobs();phases=store.phases();controller=read(runtime/'status.json')
+    if not controller:controller=read(runtime/'controller.json')
+    projects=[]
+    for p in registry['projects']:
+        if not p.get('on_schedule'):continue
+        status=read(Path(p['state_dir'])/'status.json');state=read(Path(p['state_dir'])/'state.json')
+        projects.append({'id':p['id'],'paused':(Path(p['state_dir'])/'PAUSED').exists(),
+            'status':status,'state':state,'state_dir':p['state_dir']})
+    dashboard=dashboard_probe() if root.resolve()==ROOT.resolve() else {'available':None}
+    traceback=''
+    log=runtime/'launchd.err.log'
+    if E.safe_file(log,runtime):
+        with log.open('rb') as handle:handle.seek(max(0,log.stat().st_size-6000));traceback=E.sanitize(handle.read(6000).decode(errors='replace'))
+    import progress_recovery as RP
+    requests=[dict(r,current=RP.harness_request_current(root,r)) for r in store.harness_requests()]
+    return {'at':instant.isoformat(),'active_window':window(registry,override,instant),'dashboard':dashboard,'controller_traceback':traceback,
+        'paused':(runtime/'PAUSED').exists(),'installing':(runtime/'INSTALLING').exists(),
+        'controller':controller,'jobs':jobs,'phases':phases,'executions':store.executions(),'phase_history':store.phases(active=False),'projects':projects,'harness_requests':requests}
+
+
+def diagnoses(value,meta,instant):
+    """Pure classification: known external/control waits are never core bugs."""
+    now=instant.timestamp();issues=[]
+    if value.get('dashboard',{}).get('available') is False and not value['installing']:
+        issues.append(('dashboard_unresponsive','midnight','dashboard',{'reason':value['dashboard'].get('reason','Unavailable')}))
+    if value['paused'] or not value['active_window'] or value['installing']:return issues
+    for request in value.get('harness_requests',[]):
+        if not request.get('current'):continue
+        project=next((p for p in value['projects'] if p['id']==request['scope']['project']),None)
+        if not project or project['paused']:continue
+        issues.append(('worker_contract','midnight','progress-'+request['failure']['fingerprint'],{'progress_request':request}))
+    for execution in value.get('executions',[]):
+        phase=next((p for p in value.get('phase_history',[]) if p['id']==execution['phase']),None)
+        if P.live_tree(execution['lease']) and (not phase or phase['state'] in {'succeeded','failed','interrupted'}):
+            issues.append(('orphan_execution','midnight',execution['kind'],{'phase':execution['phase'],'job':execution['job']}))
+    for phase in value['phases']:
+        if phase['state'] in {'waiting','running'} and phase['deadline']<now:
+            issues.append(('phase_deadline',phase['project'],phase['kind'],{'phase':phase['id'],'deadline':phase['deadline']}))
+    for job in value['jobs']:
+        if job['project']=='midnight' and job.get('payload',{}).get('kind')!='agent_discussion':continue
+        if job['state']=='running' and not P.alive(job.get('lease')):
+            issues.append(('orphan_action',job['project'],'owned-action',{'action':job['id']}))
+        elif job['state']=='running' and not any(p['job']==job['id'] for p in value['phases']):
+            registered=next((p for p in value['projects'] if p['id']==job['project']),{})
+            if registered.get('state',{}).get('pending',{}).get('phase')=='delivery':continue
+            progress=max([job['created']]+[p['progress'] for p in value.get('phase_history',[]) if p['job']==job['id']])
+            if now-progress>120:issues.append(('action_no_progress',job['project'],'action-progress',{'action':job['id'],'progress':progress}))
+    controller=value.get('controller',{})
+    stamp=controller.get('updated_at')
+    age=(instant-dt.datetime.fromisoformat(stamp)).total_seconds() if stamp else 999999
+    if age>120:
+        issues.append(('controller_unresponsive','midnight','controller',{'age_seconds':round(age),'traceback':value.get('controller_traceback','')}))
+    elif controller.get('phase')=='needs_attention':
+        detail=str(controller.get('detail',''))
+        if not any(s in detail.lower() for s in ('owner changes','uncommitted','authentication','quota','permission','disk space')):
+            issues.append(('controller_error','midnight','controller',{'detail':E.sanitize(detail)[:1200],'traceback':value.get('controller_traceback','')}))
+    available=[p for p in value['projects'] if not p['paused']]
+    unexplained=[]
+    for p in available:
+        status=p['status'];phase=status.get('phase','');detail=str(status.get('detail',''))
+        if any(s in detail.lower() for s in ('truncated','no repository-reading','no available tool','no tools are available')):
+            issues.append(('missing_manager_evidence',p['id'],'manager-handoff',{'phase':phase,'detail':detail[:1200]}))
+        if phase=='needs_attention' and not expected_project_wait(p,instant):
+            lower=detail.lower()
+            if not any(x in lower for x in ('authentication','quota','rate limit','owner changes','uncommitted','allowance','scope','permission','disk','profile needs')):
+                issues.append(('backend_error',p['id'],'backend-control',{'phase':phase,'detail':detail[:1200]}))
+        owned=any(j['project']==p['id'] for j in value['jobs'])
+        known=owned or expected_project_wait(p,instant)
+        if not known:unexplained.append(p['id'])
+    if unexplained:
+        threshold=POLICY['unexplained_block_seconds'] if len(unexplained)==len(available) else POLICY['runnable_idle_seconds']
+        stalled=[p for p in unexplained if now-(meta.get('idle_projects',{}).get(p) or now)>=threshold]
+        if stalled:issues.append(('runnable_idle','midnight','dispatch',{'projects':stalled,'idle_seconds':round(max(now-meta['idle_projects'][p] for p in stalled))}))
+    return issues
+
+
+def restart_controller():
+    return subprocess.run(['/bin/launchctl','kickstart','-k',f'gui/{os.getuid()}/space.venin.midnight'],
+        capture_output=True,timeout=10).returncode==0
+
+
+def restart_dashboard():
+    return subprocess.run(['/bin/launchctl','kickstart','-k',f'gui/{os.getuid()}/space.venin.midnight-dashboard'],capture_output=True,timeout=10).returncode==0
+
+
+def dashboard_probe():
+    try:
+        with urllib.request.urlopen('http://127.0.0.1:8766/api/health',timeout=2) as response:value=json.load(response)
+        observation=value.get('status_observation')
+        responsive=observation is None or observation.get('available') is True or observation.get('warming') is True
+        return {'available':value.get('service')=='midnight-dashboard' and P.alive(value.get('process')) and responsive}
+    except (OSError,ValueError):return {'available':False,'reason':'Read-only health endpoint unavailable'}
+
+
+def dashboard_health(after,expected):
+    try:
+        with urllib.request.urlopen('http://127.0.0.1:8766/api/status',timeout=2) as response:
+            value=json.load(response)
+        return bool(value.get('observation',{}).get('available',True) and value.get('workflow',{}).get('version')==1 and dt.datetime.fromisoformat(value['checked_at']).timestamp()>after
+            and value.get('dashboard_code_sha256')==expected and P.alive(value.get('dashboard_process')))
+    except (OSError,ValueError,KeyError):return False
+
+
+def installation_health(root,value,instant):
+    """Watch an adopted patch; rollback code only, never its runtime history."""
+    store=Actions(root/'runtime');health=store.meta('install_health') or {}
+    if health.get('state') not in {'verifying','rolling_back','rolled_back'} or value['paused'] or not value['active_window']:return
+    if health.get('state')=='rolled_back' and health.get('finalized'):return
+    elapsed=instant.timestamp()-health['at']
+    stamp=value.get('controller',{}).get('updated_at')
+    responsive=bool(stamp and dt.datetime.fromisoformat(stamp).timestamp()>health['at']
+        and instant.timestamp()-dt.datetime.fromisoformat(stamp).timestamp()<90
+        and value['controller'].get('code_sha256')==health.get('controller_sha256')
+        and P.alive(value['controller'].get('process')))
+    bad=value.get('controller',{}).get('phase')=='needs_attention'
+    if health['state']=='verifying' and elapsed>=180 and responsive and not bad and dashboard_health(health['at'],health.get('dashboard_sha256')):
+        with P.source_lock(root/'runtime',deadline=time.time()+10,stopped=lambda:(root/'runtime'/'PAUSED').exists()):
+            if store.meta('install_health')!=health:return
+            owned=health.get('rollback_fence')
+            if owned and owned.get('owner')=='guardian-install-health' and owned.get('generation') and owned.get('installed')==health['installed'] and owned.get('repair')==health['repair']:
+                import git_delivery as G
+                if G.git(root,'rev-parse','HEAD')!=health['installed']:return
+                marker=root/'runtime'/'INSTALLING'
+                expected=(json.dumps(owned,sort_keys=True)+'\n').encode()
+                if E.safe_file(marker,root/'runtime') and marker.read_bytes()==expected:
+                    D.marker(marker,False);health['rollback_fence_cleared_at']=instant.isoformat()
+                else:health['rollback_fence_retired_at']=instant.isoformat()
+                health.pop('rollback_fence',None)
+            health.update(state='verified',verified_at=instant.isoformat());store.meta('install_health',health,write=True)
+        return
+    if health['state']=='verifying' and elapsed<180:return
+    import git_delivery as G
+    with P.source_lock(root/'runtime',deadline=time.time()+10,stopped=lambda:(root/'runtime'/'PAUSED').exists()):
+        if store.meta('install_health')!=health:return
+        current=G.git(root,'rev-parse','HEAD')
+        replay=health['state'] in {'rolling_back','rolled_back'} and current==health['previous']
+        if current!=health['installed'] and not replay or G.git(root,'status','--porcelain'):
+            health.update(state='held',reason='Owner source changes prevent automatic rollback');store.meta('install_health',health,write=True);return
+        if replay:
+            finalize_rollback(root,health);return
+        if not (root/'runtime'/'INSTALLING').exists():
+            previous=health.get('rollback_fence') or {}
+            health['rollback_fence']=previous if previous.get('owner')=='guardian-install-health' and previous.get('generation') else {'installed':health['installed'],'repair':health['repair'],'owner':'guardian-install-health','generation':uuid.uuid4().hex}
+            store.meta('install_health',health,write=True)
+            D.atomic_write(root/'runtime'/'INSTALLING',(json.dumps(health['rollback_fence'],sort_keys=True)+'\n').encode())
+        for job in store.jobs():
+            if job['project']=='midnight' and job.get('payload',{}).get('kind')!='agent_discussion':continue
+            if P.alive(job.get('lease')):os.kill(job['lease']['pid'],signal.SIGTERM)
+            if not P.alive(job.get('lease')) and PA.drain(root/'runtime',job['id'],grace=3):
+                store.finish(job['id'],'interrupted',{'reason':'rollback_drain'})
+        if any(j['project']!='midnight' or j.get('payload',{}).get('kind')=='agent_discussion' for j in store.jobs()):return
+        if (root/'runtime'/'PAUSED').exists() or not window(read(root/'projects.json'),read(root/'runtime'/'override.json'),dt.datetime.now(dt.timezone.utc)):return
+        health.update(state='rolling_back',rollback_started=health.get('rollback_started',instant.isoformat()))
+        store.meta('install_health',health,write=True)
+        G.git(root,'update-ref','refs/midnight/failed-install/'+health['repair'],health['installed'])
+        if current!=health['previous']:G.git(root,'reset','--hard',health['previous'])
+        health.update(state='rolled_back',reason='Installed controller failed its bounded health observation')
+        store.meta('install_health',health,write=True);finalize_rollback(root,health)
+
+
+def finalize_rollback(root,health):
+    runtime=root/'runtime';store=Actions(runtime)
+    if (runtime/'PAUSED').exists() or not window(read(root/'projects.json'),read(runtime/'override.json'),dt.datetime.now(dt.timezone.utc)):return
+    requests=health.setdefault('restart_requests',{})
+    try:
+        for name,request in (('controller',restart_controller),('dashboard',restart_dashboard)):
+            if requests.get(name):continue
+            if (runtime/'PAUSED').exists():break
+            try:requests[name]=bool(request())
+            except (OSError,subprocess.SubprocessError) as exc:
+                requests[name]=False;health['restart_error']=type(exc).__name__
+            health.update(state='rolled_back',finalized=False);store.meta('install_health',health,write=True)
+        health.update(state='rolled_back',finalized=bool(requests.get('controller') and requests.get('dashboard')))
+        store.meta('install_health',health,write=True)
+    finally:
+        # Source is already restored. Keep restart replay separate from jobs.
+        D.marker(runtime/'INSTALLING',False)
+
+
+def repair_running(store,spawn=None):
+    for repair in store.repairs():
+        if repair['state']=='reserved':
+            if store.clock()-repair['updated']>120:
+                store.repair(repair['id'],state='unknown')
+            return True
+        if repair['state']=='running' and P.alive(repair.get('lease')):return True
+        if repair['state']=='running':
+            store.repair(repair['id'],state='unknown',expected_lease=repair.get('lease'),payload=repair['payload'])
+        # Unknown execution is charged. The recovery executor must reconcile
+        # its source/delivery receipts before another writer can start.
+        current=store.repair(repair['id'])
+        if P.alive(current.get('lease')):return True
+        for job in store.jobs():
+            if job['project']=='midnight' and job.get('payload',{}).get('kind')!='agent_discussion' and not P.alive(job.get('lease')):
+                if PA.drain(store.runtime,job['id'],grace=3):store.finish(job['id'],'interrupted',{'reason':'maintenance_owner_lost'})
+        log=store.runtime/'maintenance'/repair['id']/'reconcile.log';log.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
+        with log.open('a') as out:
+            (spawn or subprocess.Popen)([sys.executable,'-B',str(Path(__file__).resolve().parent/'core_repair.py'),
+                '--root',str(store.runtime.parent),'--repair',repair['id'],'--reconcile'],
+                stdin=subprocess.DEVNULL,stdout=out,stderr=subprocess.STDOUT,start_new_session=True)
+        return True
+    return False
+
+
+def launch_repair(root,store,incident,*,spawn=None):
+    if (store.meta('install_health') or {}).get('state') in {'verifying','rolling_back'}:return None
+    if repair_running(store,spawn=spawn):return None
+    fault=store.get_incident(incident);request=(fault or {}).get('payload',{}).get('progress_request')
+    if (fault or {}).get('code')=='dashboard_unresponsive' and dashboard_probe().get('available') is True:
+        store.incident_state(incident,'resolved','Fresh dashboard health supersedes the old incident; no new maintenance charge');return None
+    if request:
+        import progress_recovery as RP
+        if not RP.harness_request_current(root,request):
+            store.retire_harness(request['id']);store.incident_state(incident,'resolved','Retained harness request superseded; original history and charges retained');return None
+    identity=store.reserve_repair(incident,{'source':subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip(),'incident_binding':fault})
+    if not identity:return None
+    log=root/'runtime'/'maintenance'/identity/'supervisor.log';log.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
+    try:
+        with log.open('a') as out:
+            (spawn or subprocess.Popen)([sys.executable,'-B',str(Path(__file__).resolve().parent/'core_repair.py'),
+                '--root',str(root),'--repair',identity],stdin=subprocess.DEVNULL,stdout=out,stderr=subprocess.STDOUT,start_new_session=True)
+    except BaseException:
+        store.repair(identity,state='unknown');raise
+    return identity
+
+
+def audit(root=ROOT,*,instant=None,restart=restart_controller,spawn=None):
+    root=Path(root);runtime=root/'runtime';runtime.mkdir(parents=True,exist_ok=True,mode=0o700)
+    with (runtime/'guardian.lock').open('a') as lock:
+        try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:return {'state':'busy'}
+        instant=instant or dt.datetime.now(dt.timezone.utc);store=Actions(runtime)
+        store.recover()
+        value=observation(root,instant);meta=store.meta('guardian') or {}
+        if value['active_window'] and not value['paused']:
+            repair_running(store,spawn=spawn)
+            value=observation(root,instant)
+            installation_health(root,value,instant)
+        issues=diagnoses(value,meta,instant)
+        for request in value.get('harness_requests',[]):
+            if not request.get('current'):store.retire_harness(request['id'])
+        if value['paused'] or not value['active_window']:
+            meta['idle_projects']={}
+        else:
+            idle=meta.setdefault('idle_projects',{})
+            for project in value['projects']:
+                active=any(p['project']==project['id'] and p['state']=='running' and P.live_tree(p.get('lease')) for p in value['phases'])
+                owned=any(j['project']==project['id'] for j in value['jobs'])
+                if active or owned or expected_project_wait(project,instant):idle.pop(project['id'],None)
+                else:idle.setdefault(project['id'],instant.timestamp())
+        seen=[]
+        for code,project,key,evidence in issues:
+            identity=store.incident(project,code,key,fingerprint(evidence),evidence);seen.append(identity)
+            incident=store.get_incident(identity)
+            if incident['state']=='held':continue
+            repair_key='deterministic:'+identity
+            if not store.meta(repair_key):
+                store.meta(repair_key,{'at':instant.isoformat(),'evidence':fingerprint(evidence)},write=True)
+                ok=False
+                if code=='orphan_execution':
+                    for execution in store.executions():
+                        if execution['phase']==evidence['phase'] and P.stop_tree(execution['lease'],grace=3):
+                            store.clear_execution(execution['phase'],execution['lease']);ok=True
+                if code in {'orphan_action','phase_deadline','action_no_progress'}:
+                    jobs=[j for j in value['jobs'] if j['project']==project]
+                    for job in jobs:
+                        if code in {'phase_deadline','action_no_progress'} and P.alive(job.get('lease')):
+                            os.kill(job['lease']['pid'],signal.SIGTERM)
+                        if not P.alive(job.get('lease')) and PA.drain(runtime,job['id'],grace=3):
+                            store.finish(job['id'],'interrupted',{'reason':'guardian_recovery'});ok=True
+                elif code in {'controller_unresponsive','controller_error','runnable_idle'}:ok=restart()
+                elif code=='dashboard_unresponsive':ok=restart_dashboard()
+                store.incident_state(identity,'recovering','Bounded deterministic recovery attempted' if ok else 'Deterministic recovery unavailable')
+            elif value['active_window'] and not value['paused'] and instant.timestamp()-incident['created']>=60 and POLICY['enabled'] and not repair_running(store,spawn=spawn):
+                launch_repair(root,store,identity,spawn=spawn)
+        for incident in store.incidents():
+            if incident['state'] in {'open','recovering'} and incident['id'] not in seen:
+                # Absence during a pause/window end is not proof of a repair.
+                if value['active_window'] and not value['paused'] and not value['installing'] and (store.meta('install_health') or {}).get('state') not in {'verifying','rolling_back'}:
+                    store.incident_state(incident['id'],'resolved','The exact fault is no longer observed by the independent audit')
+        meta.update(at=instant.isoformat(),issues=len(issues),state='paused' if value['paused'] else 'outside_window' if not value['active_window'] else 'attention' if issues else 'observing')
+        store.meta('guardian',meta,write=True)
+        return {**meta,'incidents':seen}
+
+
+def main():
+    parser=argparse.ArgumentParser();parser.add_argument('--root',default=str(ROOT));args=parser.parse_args()
+    if Path(args.root).resolve()!=INSTALL_ROOT.resolve():raise ValueError('Guardian CLI requires the installed canonical pipeline')
+    try:result=audit(Path(args.root))
+    except Exception as exc:
+        result={'state':'unavailable','at':dt.datetime.now(dt.timezone.utc).isoformat(),'reason':type(exc).__name__+': '+str(exc)[:240]}
+        D.atomic_write(Path(args.root)/'runtime'/'guardian-error.json',(json.dumps(result)+'\n').encode())
+    print(json.dumps(result))
+
+
+if __name__=='__main__':main()

@@ -34,8 +34,14 @@ def processes():
     return [v for pid in list(pids)[:max(0,length)//C.sizeof(C.c_int)] if pid and (v:=info(pid)) and v['uid']==os.getuid()]
 
 
+def _c_locale(kwargs):
+    """ps prints lstart in the caller's locale; identity stamps must not vary with it."""
+    env=dict(kwargs.get('env') or os.environ);env['LC_ALL']='C';env.pop('LANG',None)
+    return {**kwargs,'env':env}
+
+
 def run(command,**kwargs):
-    if os.environ.get('MIDNIGHT_CONFINED_TESTS')!='1':return subprocess.run(command,**kwargs)
+    if os.environ.get('MIDNIGHT_CONFINED_TESTS')!='1':return subprocess.run(command,**_c_locale(kwargs))
     args=list(command)[1:]
     rows=[info(args[args.index('-p')+1])] if '-p' in args else processes()
     option='-o' if '-o' in args else '-axo' if '-axo' in args else None
@@ -48,5 +54,5 @@ def run(command,**kwargs):
 
 
 def check_output(command,**kwargs):
-    if os.environ.get('MIDNIGHT_CONFINED_TESTS')!='1':return subprocess.check_output(command,**kwargs)
+    if os.environ.get('MIDNIGHT_CONFINED_TESTS')!='1':return subprocess.check_output(command,**_c_locale(kwargs))
     return run(command,**kwargs).stdout

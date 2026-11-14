@@ -70,3 +70,31 @@ class OwnerPinTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class AdoptTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        p = mock.patch.object(M, 'RUNTIME', Path(self.temp.name)); p.start(); self.addCleanup(p.stop)
+        self.item = {'model': 'fixture:chosen', 'digest': 'd' * 64, 'context': 32768, 'bytes': 10, 'parameters_sha256': 'e' * 64}
+        for target, name, kwargs in [(M, 'local_descriptor', {'side_effect': lambda name, context=32768: dict(self.item, model=name, context=context)}),
+                                     (M.GP, 'active', {'return_value': None})]:
+            q = mock.patch.object(target, name, **kwargs); q.start(); self.addCleanup(q.stop)
+
+    def test_fresh_install_adopts_and_pins_an_installed_model_in_runtime_state(self):
+        pin = M.adopt('fixture:chosen', reason='setup')
+        state = M.load()
+        self.assertEqual(state['active'], self.item); self.assertEqual(pin['digest'], 'd' * 64)
+        self.assertEqual(M.active(verify=True), self.item)
+        self.assertEqual([e['kind'] for e in state['history']], ['owner_adopted', 'owner_pinned'])
+
+    def test_adoption_replaces_an_earlier_choice_and_keeps_history(self):
+        M.adopt('fixture:first'); M.adopt('fixture:second')
+        state = M.load()
+        self.assertEqual(state['active']['model'], 'fixture:second'); self.assertEqual(state['owner_pin']['model'], 'fixture:second')
+        self.assertEqual(len(state['history']), 4)
+
+    def test_adoption_refuses_to_interrupt_model_maintenance(self):
+        M.save({'schema_version': 1, 'active': self.item, 'evaluated': {}, 'history': [], 'comparison': {'id': 'cmp'}})
+        with self.assertRaisesRegex(ValueError, 'in progress'):
+            M.adopt('fixture:chosen')

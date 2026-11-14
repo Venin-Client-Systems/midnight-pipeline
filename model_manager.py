@@ -293,8 +293,8 @@ def _step():
         state.pop('error',None);state.pop('retry_after',None);save(state)
         return {'status':'probe_complete','passed':result['passed'],'model':state['active']['model']}
 
-def _pin(state,reason):
-    current=active(verify=True)
+def _pin(state,reason,current=None):
+    current=current or active(verify=True)
     if state.get('active')!=current:raise ValueError('Pin requires the verified current selected model')
     if state.get('comparison'):
         history(state,'comparison_abandoned',reason='owner_pin',challenger=state['comparison'].get('challenger',{}).get('model'));state.pop('comparison')
@@ -312,6 +312,20 @@ def pin(reason='owner_selected_worker'):
     with transaction():
         if GP.active():raise ValueError('Disable the GLM provider selection before pinning a local worker')
         return _pin(load(),reason)
+
+
+def adopt(model,context=None,reason='owner_selected_at_setup'):
+    """Select an installed local model as the pinned worker without editing tracked configuration."""
+    with transaction():
+        if GP.active():raise ValueError('Disable the GLM provider selection before adopting a local worker')
+        RUNTIME.mkdir(parents=True,mode=0o700,exist_ok=True);os.chmod(RUNTIME,0o700)
+        state=load()
+        if any(state.get(key) for key in ('comparison','canary','operation')):
+            raise ValueError('Model maintenance is in progress; adopt after it finishes')
+        item=local_descriptor(model,int(context or config()['context']))
+        state.setdefault('schema_version',1);state.setdefault('evaluated',{});state.setdefault('history',[])
+        state['active']=item;history(state,'owner_adopted',model=item['model'],digest=item['digest'])
+        return _pin(state,reason,item)
 
 
 def unpin(reason='owner_released_pin'):

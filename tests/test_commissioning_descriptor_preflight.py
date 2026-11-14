@@ -24,7 +24,7 @@ class CommissioningDescriptor(unittest.TestCase):
     def setUp(self):
         temporary=tempfile.TemporaryDirectory();self.addCleanup(temporary.cleanup)
         self.root=Path(temporary.name);self.runtime=self.root/'runtime'
-        self.registry=json.loads((Path(M.__file__).parent/'projects.json').read_text())
+        self.registry=json.loads((Path(M.__file__).parent/'projects.example.json').read_text())
         self.project=dict(self.registry['projects'][0],state_dir=str(self.root/'project'))
         self.registry['projects']=[self.project]
         state=Path(self.project['state_dir']);state.mkdir()

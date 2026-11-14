@@ -11,7 +11,8 @@ from unittest import mock
 import coordinator_install as C
 import test_recovery_rollback_generation as F
 
-PREVIOUS='1c53c9a9571f17727ed9bb3ee500a3d73a0baa6c'
+# The guardian evaluator as released before the fenced handoff, kept as a fixture.
+PREVIOUS=Path(__file__).resolve().parent/'fixtures'/'previous_guardian.py.txt'
 
 
 class GuardianHandoffTests(unittest.TestCase):
@@ -19,7 +20,7 @@ class GuardianHandoffTests(unittest.TestCase):
         resumer=mock.patch.object(C,'arm_coordinator_resumer',return_value={'loaded':True});resumer.start();self.addCleanup(resumer.stop)
         self.f=F.RollbackGenerationTests();self.f.setUp();self.addCleanup(self.f.doCleanups)
         self.actual=Path(C.__file__).resolve().parent
-        self.previous=subprocess.check_output(['/usr/bin/git','show',PREVIOUS+':guardian.py'],cwd=self.actual,text=True)
+        self.previous=PREVIOUS.read_text()
 
     def test_actual_previous_evaluator_cleared_the_fence_after_failed_restarts(self):
         f=self.f;module=types.ModuleType('previous_guardian');module.__file__=str(self.actual/'guardian.py')

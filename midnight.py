@@ -84,6 +84,8 @@ def engineering_policy():
 
 
 def registry():
+    if not REGISTRY.exists():
+        raise ValueError("Midnight is not set up yet: projects.json is missing. Run `midnight setup`.")
     data = read(REGISTRY)
     if data.get("schema_version") != 1 or not isinstance(data.get("projects"), list):
         raise ValueError("Invalid Midnight project register")
