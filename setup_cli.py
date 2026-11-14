@@ -154,7 +154,8 @@ def agents_directory():
     return Path.home() / 'Library' / 'LaunchAgents'
 
 
-def install_services(timezone, port, launchctl=run):
+def install_services(timezone, port):
+    launchctl = run
     installed = []
     domain = f'gui/{os.getuid()}'
     (ROOT / 'runtime').mkdir(mode=0o700, exist_ok=True)
@@ -170,7 +171,8 @@ def install_services(timezone, port, launchctl=run):
     return installed
 
 
-def remove_services(launchctl=run):
+def remove_services():
+    launchctl = run
     removed = []
     for label in LABELS.values():
         launchctl(['/bin/launchctl', 'bootout', f'gui/{os.getuid()}/{label}'])
@@ -470,9 +472,10 @@ def try_demo(args):
     result = run([PYTHON, str(ROOT / 'midnight.py'), 'override', '--for', '90m', '--reason', 'midnight try'])
     if result.returncode != 0:
         raise SetupError('Could not open a run window: ' + (result.stderr or result.stdout).strip())
-    run(['/bin/launchctl', 'kickstart', f"gui/{os.getuid()}/{LABELS['controller']}"])
-    say('\nMidnight is running the demo task now (for up to 90 minutes).\n'
-        '  What happens: a first review of the project, then the local model writes the change, the host reruns the tests, a\n'
+    started = run(['/bin/launchctl', 'kickstart', f"gui/{os.getuid()}/{LABELS['controller']}"]).returncode == 0
+    say(('\nMidnight is running the demo task now (for up to 90 minutes).\n' if started else
+         '\nThe demo task is ready, but the Midnight service is not loaded. Start it in another terminal with:  midnight tick\n')
+        + '  What happens: a first review of the project, then the local model writes the change, the host reruns the tests, a\n'
         '  second pass reviews it, and an accepted change is committed. On a 32 GB Mac expect 15 to 40 minutes.\n\n'
         '  Watch:    midnight status          or open the dashboard\n'
         f'  Result:   git -C {repository} log --oneline\n'
