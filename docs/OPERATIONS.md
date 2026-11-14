@@ -50,7 +50,7 @@ midnight mode scheduled           # restore saved weekday 00:00–09:00 Adelaide
 midnight commissioning            # inspect the one-use retained-action grant
 ```
 
-[projects.json](../projects.json) is the authoritative Midnight membership and direction register. It records which projects are on the schedule, where their backlogs and evidence live, why each is being built, and Codex's current instruction. The shared MAP records infrastructure; the VENIN Developer authority record preserves the owner's scoped permissions. Newer owner instructions and current controls remain authoritative.
+`projects.json` (local and git-ignored; created by `midnight setup` from [projects.example.json](../projects.example.json)) is the authoritative Midnight membership and direction register. It records which projects are on the schedule, where their backlogs and evidence live, why each is being built, and Codex's current instruction. The shared MAP records infrastructure; the VENIN Developer authority record preserves the owner's scoped permissions. Newer owner instructions and current controls remain authoritative.
 
 Shared retry-quality, reuse, recovery and reporting controls apply to **all registered projects**. [BACKENDS.md](../BACKENDS.md) defines protocol5 and the required version-checked adapter contract. Product-specific feature work remains in each project's own repository. Superseded failed tasks retain their original history and are not counted as completed.
 

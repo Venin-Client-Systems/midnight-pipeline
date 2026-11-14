@@ -19,3 +19,7 @@ host model descriptor. Keep tasks to one observable behaviour with concrete
 examples, preferably one source and one test file; final integration gates
 retain the complete contract. Model discovery, downloads and tests retain the
 existing account/project boundaries and local GPU lock.
+
+## Session debrief
+
+At the start of every session, read `docs/session-debriefs/README.md` and the latest `docs/session-debriefs/YYYY-MM-DD.md`, including all same-day entries, before substantive work. Verify the current branch, commit and working tree. Before the final handoff of every coding, planning, review or documentation session, add a timestamped entry with completed work, the checks actually run and their results, the current revision, unfinished work, blockers and ordered next steps, and update the index's latest link. Append later sessions and corrections; preserve closed entries. Keep secrets, personal details and private records out of these files: this repository is public.
