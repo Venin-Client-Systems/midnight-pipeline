@@ -1157,7 +1157,11 @@ def main():
     p.add_argument('project');p.add_argument('--task',required=True);p.add_argument('--commit',required=True)
     p=sub.add_parser('scrum',help='Read the daily Adelaide scrum schedule and history')
     p.add_argument('--json',action='store_true')
+    import setup_cli
+    setup_cli.add_parsers(sub)
     args = parser.parse_args()
+    if args.command in setup_cli.COMMANDS:
+        return setup_cli.main(args)
     data = registry()
     command = args.command or "status"
     if command=='oversight':
