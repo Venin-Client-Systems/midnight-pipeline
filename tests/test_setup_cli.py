@@ -43,6 +43,7 @@ class Fixture(unittest.TestCase):
     def repository(self, name='Example App'):
         path = self.base / name; (path / 'example').mkdir(parents=True); (path / 'tests').mkdir()
         (path / 'example' / '__init__.py').write_text(''); (path / 'tests' / '__init__.py').write_text('')
+        (path / 'tests' / 'test_unit_existing.py').write_text('import unittest\n')
         for command in (['init', '-q', '-b', 'main'], ['add', '-A'],
                         ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'first']):
             subprocess.run(['/usr/bin/git', '-C', str(path), *command], check=True)
@@ -95,6 +96,30 @@ class SetupTests(Fixture):
         self.assertEqual(launcher.read_text(), '#!/bin/sh\necho someone else\n')
         self.assertFalse(self.launchctl.called)
 
+    def test_setup_again_keeps_the_chosen_model_unless_told_otherwise(self):
+        self.run_setup(model='big:70b')
+        _, manager = self.run_setup()
+        manager.adopt.assert_called_once_with('big:70b', reason='Chosen during setup')
+        _, manager = self.run_setup(model='fits:30b')
+        manager.adopt.assert_called_once_with('fits:30b', reason='Chosen during setup')
+
+    def test_bad_schedule_options_are_refused_before_the_registry_exists(self):
+        for values in ({'timezone': 'Europe/Londn'}, {'start': '25:00'}, {'end': 'late'}):
+            with self.subTest(values=values), self.assertRaisesRegex(S.SetupError, 'IANA timezone'):
+                self.run_setup(**values)
+        self.assertFalse(S.REGISTRY.exists())
+
+    def test_services_of_another_checkout_are_neither_replaced_nor_removed(self):
+        agents = self.home / 'Library/LaunchAgents'; agents.mkdir(parents=True)
+        foreign = agents / 'space.venin.midnight.plist'
+        foreign.write_bytes(plistlib.dumps({'Label': 'space.venin.midnight', 'WorkingDirectory': '/somewhere/else'}))
+        with self.assertRaisesRegex(S.SetupError, 'Another Midnight checkout at /somewhere/else'):
+            self.run_setup()
+        self.assertFalse(self.launchctl.called)
+        with mock.patch.object(S, 'run', mock.Mock(return_value=subprocess.CompletedProcess([], 0, '', ''))) as launchctl:
+            S.uninstall(arguments(purge=False))
+        self.assertTrue(foreign.exists()); self.assertFalse(launchctl.called)
+
     def test_missing_prerequisite_stops_before_anything_is_written(self):
         with mock.patch.object(S, 'prerequisites', return_value=[('Ollama running', False, 'Install Ollama')]):
             with self.assertRaisesRegex(S.SetupError, 'MISSING'):
@@ -135,7 +160,12 @@ class ProjectTests(Fixture):
         self.assertEqual(project['state_dir'], str(self.root / 'runtime/projects/example-app'))
         config = json.loads((self.path / 'orchestration/config.json').read_text())
         self.assertEqual(config['product_dirs'], ['example']); self.assertEqual(config['max_cloud_calls_per_night'], 0)
-        self.assertIn(repr(str(self.root)), (self.path / 'orchestration/supervisor.py').read_text())
+        supervisor = (self.path / 'orchestration/supervisor.py').read_text()
+        self.assertIn(repr(str(self.root)), supervisor)
+        with mock.patch.object(S, 'ROOT', self.home / 'Developer' / 'midnight'):
+            self.assertEqual(S.portable_root(), "str(Path.home() / 'Developer' / 'midnight')")
+        self.assertEqual([c['command'][1:] for c in config['host_checks']],
+                         [['-m', 'unittest', 'discover', '-s', 'tests', '-v'], ['-m', 'compileall', '-q', 'example']])
         import quality_cycle
         quality_cycle.load_profile(self.root / 'quality_profiles/example-app.json')
         self.assertEqual(S.git(self.path, 'status', '--porcelain'), '')
@@ -149,6 +179,12 @@ class ProjectTests(Fixture):
         self.connect(self.path)
         with self.assertRaisesRegex(S.SetupError, 'already connected'):
             self.connect(self.path)
+        with self.assertRaisesRegex(S.SetupError, 'reserved'):
+            self.connect(self.repository('second'), id='exampleapp')
+        untested = self.repository('untested'); (untested / 'tests/test_unit_existing.py').unlink()
+        subprocess.run(['/usr/bin/git', '-C', str(untested), 'commit', '-qam', 'no tests'], check=True)
+        with self.assertRaisesRegex(S.SetupError, r'no tests/test\*\.py'):
+            self.connect(untested)
         plain = self.base / 'plain'; plain.mkdir()
         with self.assertRaisesRegex(S.SetupError, 'not a Git repository'):
             self.connect(plain)
@@ -174,10 +210,24 @@ class ProjectTests(Fixture):
         self.connect(self.path)
         for values, message in (({'file': ['README.md', 'tests/test_unit_x.py']}, 'outside what the worker may edit'),
                                 ({'file': ['example/a.py']}, 'test_unit'),
+                                ({'file': ['example/*.py', 'tests/test_unit_x.py']}, 'patterns are not allowed'),
+                                ({'file': ['example/a.py', 'tests/test_unit_existing.py']}, 'already exists'),
                                 ({'file': ['example/a.py', 'example/b.py', 'example/c.py', 'example/d.py', 'tests/test_unit_x.py']}, 'one to four'),
                                 ({'accept': ['  ']}, 'at least one --accept'), ({'project': 'nope'}, 'Unknown project')):
             with self.subTest(message=message), self.assertRaisesRegex(S.SetupError, message):
                 self.task(**values)
+        self.assertEqual(json.loads((self.path / 'orchestration/backlog.json').read_text()), [])
+
+    def test_a_refused_commit_leaves_the_repository_exactly_as_it_was(self):
+        hook = self.path / '.git/hooks/pre-commit'; hook.write_text('#!/bin/sh\nexit 1\n'); hook.chmod(0o755)
+        with self.assertRaisesRegex(S.SetupError, 'Nothing was changed'):
+            self.connect(self.path)
+        self.assertEqual(S.git(self.path, 'status', '--porcelain'), ''); self.assertFalse((self.path / 'orchestration').exists())
+        self.assertEqual(json.loads(S.REGISTRY.read_text())['projects'], [])
+        hook.unlink(); self.connect(self.path); hook.write_text('#!/bin/sh\nexit 1\n'); hook.chmod(0o755)
+        with self.assertRaisesRegex(S.SetupError, 'Nothing was changed'):
+            self.task()
+        self.assertEqual(S.git(self.path, 'status', '--porcelain'), '')
         self.assertEqual(json.loads((self.path / 'orchestration/backlog.json').read_text()), [])
 
     def test_release_pauses_only_for_the_release_and_explains_a_refusal(self):

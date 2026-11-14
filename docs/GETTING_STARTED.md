@@ -57,7 +57,7 @@ Setup options, passed after `bash -s --` or to `midnight setup` directly:
 | `--port N` | Dashboard port (default 8766) |
 | `--no-services` | Skip launchd; you run `midnight tick` yourself |
 
-To install somewhere else, set `MIDNIGHT_HOME` before the command. Running setup again is safe: it keeps your schedule and projects.
+To install somewhere else, give the folder to the shell that runs the script: `curl -fsSL … | MIDNIGHT_HOME=~/tools/midnight bash`. (The optional guardian service still expects `~/Developer/midnight`.) Running setup again is safe: it keeps your schedule, your projects and your model unless you pass `--model`.
 
 ## 3. Run the demo
 
@@ -69,7 +69,7 @@ This creates `~/Developer/midnight-demo` (a ten-line Python package with one tes
 
 What you will see, in order:
 
-| Stage | What Midnight is doing | Typical time on 32 GB |
+| Stage | What Midnight is doing | Rough time on 32 GB |
 | --- | --- | --- |
 | Assessment | Runs the project's tests and has the model review the code once, as a baseline | 5–10 min |
 | Attempt | The model reads files, edits, runs the tests and fixes failures, one small action at a time | 5–15 min |
@@ -77,7 +77,7 @@ What you will see, in order:
 | Review | A separate pass reads the change and accepts it or sends it back with reasons | 3–10 min |
 | Delivery | The accepted change is committed to the demo repository | seconds |
 
-Watch with `midnight status`, or open the dashboard. When it finishes:
+These times assume nothing else is using the model. Watch with `midnight status`, or open the dashboard. When it finishes:
 
 ```sh
 git -C ~/Developer/midnight-demo log --oneline     # the new commit
@@ -96,7 +96,7 @@ Your project needs to be:
 
 - a Git repository with at least one commit and no uncommitted changes
 - a Python project with a package at the top level (a folder containing `__init__.py`)
-- tested with `unittest`, in a `tests/` folder
+- tested with `unittest`, in a `tests/` folder with at least one `test*.py` file, runnable as `python3 -m unittest discover -s tests`
 
 `init` adds four small files and commits them to your repository:
 
@@ -125,7 +125,7 @@ midnight add-task myapp \
 Brief it the way you would brief a careful junior on their first day:
 
 - **One behaviour per task.** "Add X" or "make Y reject Z", not "refactor the user module".
-- **Name the files.** One to four, and always include a test file named `tests/test_unit_<something>.py`. The worker runs that file while it works.
+- **Name the files.** One to four exact paths, and always include a **new** test file named `tests/test_unit_<something>.py`. The worker runs that file while it works. Tests that already exist are protected and cannot be in a task.
 - **Make acceptance checkable.** Each `--accept` line should be something a test can prove, ideally with a concrete input and output.
 - **Say where things go.** Name the function and the file in the description.
 - **Split anything bigger.** Three small tasks finish; one large task stalls at review.
@@ -145,7 +145,7 @@ Inside the schedule window, the controller wakes every minute and, for each conn
 
 A failed attempt is not simply repeated. Midnight allows another try only when something changed: review feedback to act on, a narrower version of the task, or your explicit release. This stops a stuck model from burning the night on one task.
 
-Per-night limits live in `orchestration/config.json`: `max_attempts_per_night` and `max_failures_per_night`.
+Per-night limits live in `orchestration/config.json`: `max_attempts_per_night` and `max_failures_per_night`. In v0.1 the counters reset at midnight Australian Central time whatever your timezone, so far from that zone a reset can fall inside your window.
 
 ## 7. Read the results
 
@@ -180,13 +180,15 @@ Change the nightly window by editing `schedule` in `~/Developer/midnight/project
 
 - **Review sent it back.** Midnight retries by itself with the reviewer's reasons.
 - **Out of attempts.** Rewrite the task smaller or clearer in `backlog.json` and commit. A changed task is a new task.
-- **Harness or model-server problem** (`needs_harness_repair`). Something outside the task failed, most often the model server not answering in time. Midnight will not guess that it is safe to repeat, so it waits for you. Fix the cause (free some memory, restart Ollama), then:
+- **The model server did not answer** (`needs_harness_repair`, with a timeout in `midnight repair-status`). Midnight will not guess that it is safe to repeat, so it waits for you. Fix the cause (free some memory, restart Ollama, stop other programs using the model), then:
 
   ```sh
   midnight release myapp --task T001 --reason "Ollama restarted after running out of memory"
   ```
 
   The release allows one more attempt and is kept in the record with your reason.
+
+- **Any other `needs_harness_repair`** (for example a reply cut off mid-way). This points at Midnight itself. Update Midnight (`git -C ~/Developer/midnight pull`), then run the same `midnight release` command; if it persists, open an issue with the run folder. Rewriting the task in `backlog.json` also starts it afresh.
 
 ## 10. Change the model
 
@@ -210,8 +212,8 @@ If you have the Claude or Codex command-line tool installed and signed in, Midni
 | `Midnight is not set up yet` | Run `midnight setup` |
 | `midnight: command not found` | Add `~/.local/bin` to your `PATH`, or run `/opt/homebrew/bin/python3 ~/Developer/midnight/midnight.py` |
 | Status says the scheduler service is not loaded | Run `midnight setup` again, or `midnight tick` in a terminal |
-| `Coordinator has owner changes; no new action launched` | You edited a tracked file inside `~/Developer/midnight`. Midnight only runs from a clean checkout: `git -C ~/Developer/midnight status`, then commit or discard |
-| `Selected local model is missing` or `digest changed` | The pinned model was removed or updated. Run `midnight setup --model <name>` |
+| `Coordinator has owner changes; no new action launched` | There is a changed or new file inside `~/Developer/midnight`. Midnight only runs from a clean checkout: `git -C ~/Developer/midnight status`, then remove, commit or discard what it lists |
+| `Selected local model is missing`, or a message that the model's digest changed | The pinned model was removed or updated. Run `midnight setup --model <name>` |
 | Attempts end with `stream_error` or `task_timeout` | The model is too slow, almost always because it does not fit in free memory. Close other apps, or use a smaller model |
 | A project never starts | `midnight status` and `midnight repair-status` give the reason; a paused project, a dirty project checkout and a held task are the usual ones |
 | Dashboard does not open | Another program has port 8766. Run `midnight setup --port 8770` |

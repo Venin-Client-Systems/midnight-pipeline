@@ -109,7 +109,7 @@ git clone https://github.com/Venin-Client-Systems/midnight-pipeline.git ~/Develo
 midnight try
 ```
 
-Creates a tiny demo project, gives it one task and runs it straight away. In 15 to 40 minutes on a 32 GB Mac there is a new commit in `~/Developer/midnight-demo`, written by the local model, checked by your Mac and reviewed before it landed. Follow along with `midnight status` or the dashboard at <http://127.0.0.1:8766>.
+Creates a tiny demo project, gives it one task and runs it straight away. Allow 20 to 45 minutes on a 32 GB Mac with nothing else using the model. When it finishes there is a new commit in `~/Developer/midnight-demo`, written by the local model, checked by your Mac and reviewed before it landed. Follow along with `midnight status` or the dashboard at <http://127.0.0.1:8766>.
 
 **3. Point it at your own project**
 
@@ -120,7 +120,7 @@ midnight add-task myapp \
   --description "validate_username(name) in myapp/users.py must raise ValueError for an empty or whitespace-only name." \
   --accept "validate_username('') raises ValueError." \
   --accept "validate_username('ada') returns 'ada'." \
-  --file myapp/users.py --file tests/test_unit_users.py
+  --file myapp/users.py --file tests/test_unit_users.py     # a new test file for this task
 ```
 
 That is it. The task runs in tonight's window, or now with `midnight override --for 60m --reason "run my task"`. In the morning, `midnight report` shows what was accepted and why anything was not.

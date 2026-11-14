@@ -12,10 +12,12 @@ from pathlib import Path
 import platform
 import plistlib
 import re
+import shlex
 import shutil
 import subprocess
 import sys
 import urllib.request
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent
 REGISTRY = ROOT / 'projects.json'
@@ -111,7 +113,7 @@ def local_models():
             capabilities = ollama('/api/show', {'model': entry['name']}).get('capabilities', [])
         except OSError:
             continue
-        if 'tools' in capabilities:
+        if 'tools' in capabilities and re.fullmatch(r'[a-z0-9][a-z0-9_.:/-]{1,100}', entry['name']):
             found.append({'model': entry['name'], 'bytes': entry.get('size', 0)})
     return sorted(found, key=lambda item: -item['bytes'])
 
@@ -154,10 +156,23 @@ def agents_directory():
     return Path.home() / 'Library' / 'LaunchAgents'
 
 
+def service_owner(path):
+    """The checkout an installed service definition belongs to, or None."""
+    try:
+        return plistlib.loads(Path(path).read_bytes()).get('WorkingDirectory')
+    except (OSError, ValueError):
+        return None
+
+
 def install_services(timezone, port):
     launchctl = run
     installed = []
     domain = f'gui/{os.getuid()}'
+    for label in LABELS.values():
+        owner = service_owner(agents_directory() / (label + '.plist'))
+        if owner and Path(owner) != ROOT:
+            raise SetupError(f'Another Midnight checkout at {owner} already owns the {label} service. '
+                             f'Run `midnight uninstall` from that checkout first, or use --no-services here.')
     (ROOT / 'runtime').mkdir(mode=0o700, exist_ok=True)
     agents_directory().mkdir(parents=True, exist_ok=True)
     for kind in ('controller', 'dashboard'):
@@ -175,8 +190,10 @@ def remove_services():
     launchctl = run
     removed = []
     for label in LABELS.values():
-        launchctl(['/bin/launchctl', 'bootout', f'gui/{os.getuid()}/{label}'])
         path = agents_directory() / (label + '.plist')
+        if not path.exists() or Path(service_owner(path) or ROOT) != ROOT:
+            continue
+        launchctl(['/bin/launchctl', 'bootout', f'gui/{os.getuid()}/{label}'])
         if path.exists():
             path.unlink()
             removed.append(str(path))
@@ -192,7 +209,7 @@ def install_launcher():
     if path.exists() and MARKER not in path.read_text(errors='replace'):
         return None
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f'#!/bin/sh\n{MARKER}\nexec {PYTHON} "{ROOT / "midnight.py"}" "$@"\n')
+    path.write_text(f'#!/bin/sh\n{MARKER}\nexec {PYTHON} {shlex.quote(str(ROOT / "midnight.py"))} "$@"\n')
     path.chmod(0o755)
     return str(path)
 
@@ -205,16 +222,27 @@ def setup(args):
         failed = failed or not passed
     if failed:
         raise SetupError('Fix the items marked MISSING, then run setup again.')
-    model = choose_model(local_models(), memory_bytes(), args.model)
-    say(f'\n  Model: {model}')
+    kept = None if args.model else (read(RECEIPT) or {}).get('model')
+    models = local_models()
+    model = kept if kept in [m['model'] for m in models] else choose_model(models, memory_bytes(), args.model)
+    say(f'\n  Model: {model}' + (' (kept from the last setup; change it with --model)' if model == kept else ''))
     data = read(REGISTRY)
     if data is None:
         timezone = args.timezone or system_timezone()
+        try:
+            ZoneInfo(timezone)
+            dt.time.fromisoformat(args.start)
+            dt.time.fromisoformat(args.end)
+        except (ValueError, KeyError, OSError):
+            raise SetupError(f'Check --timezone ({timezone}), --start ({args.start}) and --end ({args.end}): '
+                             'use an IANA timezone such as Europe/London and 24-hour HH:MM times.') from None
         data = new_registry(timezone, args.start, args.end, WEEKDAYS if not args.every_day else WEEKDAYS + ['sat', 'sun'])
         write(REGISTRY, data)
         say(f'  Schedule: {args.start}–{args.end} {timezone}, ' + ('every day' if args.every_day else 'Monday to Friday'))
     else:
         say(f"  Schedule: kept from the existing projects.json ({data['schedule']['start']}–{data['schedule']['end']} {data['timezone']})")
+        if args.timezone or args.every_day or (args.start, args.end) != ('00:00', '09:00'):
+            say(f'           Schedule options were ignored because a schedule already exists; edit {REGISTRY} to change it.')
     import model_manager
     model_manager.adopt(model, reason='Chosen during setup')
     receipt = {'installed_at': dt.datetime.now(dt.timezone.utc).isoformat(), 'model': model, 'services': [], 'launcher': None}
@@ -260,6 +288,8 @@ def uninstall(args):
         RECEIPT.unlink()
     for item in removed:
         say('  removed ' + item)
+    if (agents_directory() / 'space.venin.midnight-guardian.plist').exists():
+        say('  The optional guardian service is still installed; see RECOVERY.md to remove it.')
     say('Midnight is uninstalled.' + ('' if args.purge else
         f' Your project list and run history are kept in {ROOT}; pass --purge to delete them too.')
         + f' Delete {ROOT} to remove the program itself. Your projects were not touched.')
@@ -287,8 +317,8 @@ def discover(repository):
     if not packages:
         raise SetupError(f'{repository} has no Python package at its top level (a directory containing __init__.py). '
                          'Midnight v0.1 works on Python projects tested with unittest.')
-    if not (repository / 'tests').is_dir():
-        raise SetupError(f'{repository} has no tests/ directory. Midnight proves every change by running your tests; add one first.')
+    if not (repository / 'tests').is_dir() or not any((repository / 'tests').glob('test*.py')):
+        raise SetupError(f'{repository} has no tests/test*.py files. Midnight proves every change by running your tests; add one first.')
     return packages
 
 
@@ -299,7 +329,9 @@ def project_config(name, data, packages):
             'source_dirs': [*packages, 'tests', 'docs'], 'product_dirs': packages,
             'source_globs': [p + '/*.py' for p in packages] + [p + '/**/*.py' for p in packages],
             'worker_allowed_patterns': [p + '/*.py' for p in packages] + [p + '/**/*.py' for p in packages] + ['tests/test_*.py', 'docs/*.md'],
-            'retry_anchors': ['docs'], 'run_trailer': 'Midnight-Run'}
+            'retry_anchors': ['docs'], 'run_trailer': 'Midnight-Run',
+            'host_checks': [{'command': [PYTHON, '-m', 'unittest', 'discover', '-s', 'tests', '-v'], 'timeout_seconds': 240},
+                            {'command': [PYTHON, '-m', 'compileall', '-q', *packages], 'timeout_seconds': 90}]}
 
 
 def quality_profile(identity, name):
@@ -307,7 +339,7 @@ def quality_profile(identity, name):
             'freshness_seconds': 86400, 'assessment_intervals': {'daily': 86400, 'weekly': 604800, 'monthly': 2592000},
             'capabilities': [{'id': 'existing-behaviour', 'status': 'shipped', 'description': f'What {name} does today, as its tests describe it'}],
             'contracts': [],
-            'checks': [{'id': 'full-regression', 'required': True, 'command': ['python3', '-m', 'unittest', 'discover', '-v'], 'timeout_seconds': 240}],
+            'checks': [{'id': 'full-regression', 'required': True, 'command': ['python3', '-m', 'unittest', 'discover', '-s', 'tests', '-v'], 'timeout_seconds': 240}],
             'workflows': [{'id': 'regression', 'check_ids': ['full-regression']}],
             'metrics': [{'id': 'required_check_pass_fraction', 'source': 'saved required host-check receipts for the exact head',
                          'definition': 'passed required checks divided by all required profile checks', 'periods': ['daily', 'weekly', 'monthly']},
@@ -323,13 +355,37 @@ from pathlib import Path
 import os
 import sys
 
-sys.path.insert(0, os.environ.get("MIDNIGHT_SHARED_ROOT", {root!r}))
+sys.path.insert(0, os.environ.get("MIDNIGHT_SHARED_ROOT", {root}))
 from project_backend import load_backend
 
 backend = load_backend(Path(__file__).resolve().parents[1], {identity!r})
 if __name__ == "__main__":
     raise SystemExit(backend.entrypoint())
 '''
+
+
+def portable_root():
+    """Source text for Midnight's location that does not put a home folder path in the user's repository."""
+    try:
+        parts = ROOT.relative_to(Path.home()).parts
+    except ValueError:
+        return repr(str(ROOT))
+    return 'str(Path.home()' + ''.join(' / ' + repr(part) for part in parts) + ')'
+
+
+def commit(repository, message, paths, created=()):
+    """Commit exactly these paths; on failure leave the repository as it was."""
+    try:
+        git(repository, 'add', '--', *paths)
+        git(repository, 'commit', '-m', message, '--', *paths)
+    except SetupError as problem:
+        run(['/usr/bin/git', '-C', str(repository), 'reset', '-q', '--', *paths])
+        for name in paths:
+            if name in created:
+                (repository / name).unlink(missing_ok=True)
+            else:
+                run(['/usr/bin/git', '-C', str(repository), 'checkout', '-q', '--', name])
+        raise SetupError(f'{problem}\nNothing was changed. If a commit hook or signing setting blocked the commit, fix that and run the command again.') from None
 
 
 def registry_or_fail():
@@ -349,16 +405,17 @@ def init(args):
     if git(repository, 'status', '--porcelain'):
         raise SetupError(f'{repository} has uncommitted changes. Commit or stash them first; Midnight starts every task from a clean checkout.')
     identity = args.id or slug(repository.name)
-    if not re.fullmatch(r'[a-z0-9][a-z0-9-]*', identity):
-        raise SetupError('A project id uses lowercase letters, digits and hyphens.')
+    if not re.fullmatch(r'[a-z0-9][a-z0-9-]*', identity) or identity == 'exampleapp':
+        raise SetupError('A project id uses lowercase letters, digits and hyphens, and "exampleapp" is reserved. Pass --id.')
     if any(p['id'] == identity or Path(p['path']) == repository for p in data['projects']):
         raise SetupError(f'{identity} is already connected. See: midnight projects')
     name = args.name or repository.name
     packages = discover(repository)
     created = []
     orchestration = repository / 'orchestration'
+    made_directory = not orchestration.exists()
     orchestration.mkdir(exist_ok=True)
-    files = {orchestration / 'supervisor.py': SUPERVISOR.format(root=str(ROOT), identity=identity),
+    files = {orchestration / 'supervisor.py': SUPERVISOR.format(root=portable_root(), identity=identity),
              orchestration / 'config.json': json.dumps(project_config(name, data, packages), indent=2) + '\n',
              orchestration / 'backlog.json': '[]\n',
              repository / 'ROADMAP.md': f'# {name} roadmap\n\nWhat this project is for and where it is going. Midnight gives this to the local model as background.\n'}
@@ -367,8 +424,12 @@ def init(args):
             path.write_text(content)
             created.append(str(path.relative_to(repository)))
     if created and not args.no_commit:
-        git(repository, 'add', '--', *created)
-        git(repository, 'commit', '-m', 'Add Midnight orchestration files', '--', *created)
+        try:
+            commit(repository, 'Add Midnight orchestration files', created, created)
+        except SetupError:
+            if made_directory and not any(orchestration.iterdir()):
+                orchestration.rmdir()
+            raise
     PROFILES.mkdir(exist_ok=True)
     write(PROFILES / (identity + '.json'), quality_profile(identity, name))
     import worker_quality
@@ -410,6 +471,8 @@ def build_task(tasks, config, *, title, description, acceptance, files, identity
     patterns = config.get('worker_allowed_patterns', [])
     for name in task['files']:
         path = Path(name)
+        if any(c in name for c in '*?['):
+            raise SetupError(f'{name}: name each file exactly; patterns are not allowed in --file.')
         if path.is_absolute() or '..' in path.parts or not any(fnmatch.fnmatch(name, p) for p in patterns):
             raise SetupError(f'{name} is outside what the worker may edit ({", ".join(patterns)}). Change the file or orchestration/config.json.')
     if not any(Path(name).name.startswith('test_unit') for name in task['files']):
@@ -427,12 +490,15 @@ def add_task(args):
     if git(repository, 'status', '--porcelain'):
         raise SetupError(f'{repository} has uncommitted changes. Commit or stash them first.')
     tasks = read(backlog, [])
+    existing = [name for name in args.file if Path(name).parts[:1] == ('tests',) and (repository / name).exists()]
+    if existing:
+        raise SetupError(f'{", ".join(existing)} already exists. Existing tests are protected so the worker cannot weaken them; '
+                         'name a new test file for this task, such as tests/test_unit_<behaviour>.py.')
     task = build_task(tasks, read(repository / project['config'], {}), title=args.title, description=args.description,
                       acceptance=args.accept, files=args.file, identity=args.id)
     tasks.append(task)
     write(backlog, tasks)
-    git(repository, 'add', '--', project['backlog'])
-    git(repository, 'commit', '-m', f"Add Midnight task {task['id']}: {task['title']}", '--', project['backlog'])
+    commit(repository, f"Add Midnight task {task['id']}: {task['title']}", [project['backlog']])
     say(f"Added {task['id']} to {project['name']} and committed the backlog. It runs in the next schedule window, or now with:\n"
         '  midnight override --for 60m --reason "run my task"')
     return 0
@@ -452,31 +518,44 @@ def create_demo(repository):
     (repository / '.gitignore').write_text('__pycache__/\n*.pyc\n')
     git(repository, 'init', '-q', '-b', 'main')
     git(repository, 'add', '-A')
-    git(repository, '-c', 'user.name=Midnight demo', '-c', 'user.email=demo@midnight.invalid', 'commit', '-q', '-m', 'Demo project')
-    for key, value in (('user.name', 'Midnight demo'), ('user.email', 'demo@midnight.invalid')):
+    for key, value in (('user.name', 'Midnight demo'), ('user.email', 'demo@midnight.invalid'), ('commit.gpgsign', 'false'), ('core.hooksPath', '/dev/null')):
         git(repository, 'config', key, value)
+    git(repository, 'commit', '-q', '-m', 'Demo project')
 
 
 def try_demo(args):
     data = registry_or_fail()
-    repository = Path(args.path).expanduser().resolve() if args.path else Path.home() / 'Developer' / 'midnight-demo'
-    if not any(p['id'] == 'midnight-demo' for p in data['projects']):
+    demo = type('Arguments', (), {'project': 'midnight-demo', 'title': DEMO_TASK['title'], 'description': DEMO_TASK['description'],
+                                  'accept': DEMO_TASK['acceptance'], 'file': DEMO_TASK['files'], 'id': None})()
+    connected = next((p for p in data['projects'] if p['id'] == 'midnight-demo'), None)
+    if connected:
+        repository = Path(connected['path'])
+        if not read(repository / connected['backlog'], []):
+            add_task(demo)
+        elif (repository / DEMO_TASK['files'][0]).exists():
+            say(f'The demo task has already been delivered; see: git -C {repository} log --oneline\n')
+    else:
+        repository = Path(args.path).expanduser().resolve() if args.path else Path.home() / 'Developer' / 'midnight-demo'
         if repository.exists():
             raise SetupError(f'{repository} already exists. Remove it or pass a different folder: midnight try --path <folder>')
-        create_demo(repository)
+        try:
+            create_demo(repository)
+        except SetupError:
+            shutil.rmtree(repository, ignore_errors=True)
+            raise
         say(f'Created a demo project at {repository}\n')
         init(type('Arguments', (), {'path': str(repository), 'id': 'midnight-demo', 'name': 'Midnight demo',
                                     'why': 'A tiny demo project that shows one full Midnight loop.', 'no_commit': False})())
-        add_task(type('Arguments', (), {'project': 'midnight-demo', 'title': DEMO_TASK['title'], 'description': DEMO_TASK['description'],
-                                        'accept': DEMO_TASK['acceptance'], 'file': DEMO_TASK['files'], 'id': None})())
+        add_task(demo)
     result = run([PYTHON, str(ROOT / 'midnight.py'), 'override', '--for', '90m', '--reason', 'midnight try'])
     if result.returncode != 0:
         raise SetupError('Could not open a run window: ' + (result.stderr or result.stdout).strip())
     started = run(['/bin/launchctl', 'kickstart', f"gui/{os.getuid()}/{LABELS['controller']}"]).returncode == 0
-    say(('\nMidnight is running the demo task now (for up to 90 minutes).\n' if started else
+    say(('\nMidnight is running now, for up to 90 minutes (the demo and any other connected project).\n' if started else
          '\nThe demo task is ready, but the Midnight service is not loaded. Start it in another terminal with:  midnight tick\n')
         + '  What happens: a first review of the project, then the local model writes the change, the host reruns the tests, a\n'
-        '  second pass reviews it, and an accepted change is committed. On a 32 GB Mac expect 15 to 40 minutes.\n\n'
+        '  second pass reviews it, and an accepted change is committed. Allow 20 to 45 minutes on a 32 GB Mac with nothing else\n'
+        '  using the model.\n\n'
         '  Watch:    midnight status          or open the dashboard\n'
         f'  Result:   git -C {repository} log --oneline\n'
         '  Evidence: midnight report')
@@ -490,6 +569,9 @@ def release(args):
     if project is None:
         raise SetupError(f'Unknown project {args.project}. See: midnight projects')
     import progress_recovery
+    from action_store import Actions
+    if any(job['project'] == args.project for job in Actions(ROOT / 'runtime').jobs()):
+        raise SetupError(f'{args.project} is in the middle of a step. Wait for it to finish (see `midnight status`), then release.')
     marker = Path(project['state_dir']) / 'PAUSED'
     paused_here = not marker.exists()
     if paused_here:
@@ -498,7 +580,9 @@ def release(args):
     try:
         progress_recovery.owner_release(ROOT, args.project, args.task, args.reason)
     except progress_recovery.RecoveryHeld as problem:
-        raise SetupError(f'{problem}. `midnight repair-status {args.project}` shows what the task is waiting for.') from None
+        hint = (' A release without a Midnight update is only possible when the model server timed out without answering.'
+                if 'unchanged' in str(problem) else '')
+        raise SetupError(f'{problem}.{hint} `midnight repair-status {args.project}` shows what the task is waiting for.') from None
     finally:
         if paused_here:
             marker.unlink(missing_ok=True)

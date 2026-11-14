@@ -4,3 +4,5 @@ runtime/
 projects.json
 quality_profiles/*.json
 !quality_profiles/exampleapp.json
+.DS_Store
+*.tmp
