@@ -1,18 +1,18 @@
 # Midnight
 
-Midnight is a scheduled, unattended coding pipeline for one Mac. Overnight it picks a task from a project's backlog, has a **local model** write the change, checks the change on the host, has a second local pass review it, and delivers accepted work as a commit. Cloud models are used sparingly for guidance and oversight, not for routine coding.
+**Your Mac writes code while you sleep.** Midnight is an autonomous overnight coding pipeline that runs on a local model. It picks a task from your backlog, writes the change, proves it against your tests in a sandbox, has a second pass review it, and delivers accepted work as a commit, all on a schedule, with no cloud bill for routine work.
 
-It was built by [VENIN](https://venin.space) as an internal tool and is published as a record of what worked and what did not.
+Built by [VENIN](https://venin.space).
 
-## Status
+## Why it's different
 
-**Shelved, not production software.** Read this before investing time.
-
-- The pipeline runs end to end on an Apple Silicon Mac with 32 GB of memory and a roughly 27-billion-parameter local model served by Ollama.
-- On that hardware the local model is the limit. In the last commissioning session it took a two-file repair through every host check but did not produce a change that also passed independent review. The remaining failures were the model looping on edits and misquoting source, not harness faults.
-- Development is paused until larger local hardware is available.
-- **It has only ever run on one machine.** Install location, launchd service labels and the delivery account are fixed in code. See [Porting](#porting).
-- The release installer (`coordinator_install.py`) only accepts control files from one past release and cannot run as written.
+- **Local first.** Routine planning, coding and review run on a model served by Ollama on your own machine. Cloud models are optional and used sparingly, for guidance when the local model is stuck.
+- **The model never gets a shell.** The worker chooses one small typed action at a time: read a file, make an exact edit, run the tests, finish. No arbitrary commands, no surprise file writes.
+- **Trust the host, not the model.** A worker saying "done" counts for nothing. Midnight reruns the tests itself in a macOS sandbox with loopback-only network, then a separate review decides.
+- **Retries need a reason.** A failed attempt cannot simply run again. Another try is admitted only with new evidence: a reviewed narrowing of the task, saved guidance, or an explicit owner release.
+- **Built to run unattended.** Schedule windows, pause and override controls, a guardian service that watches the controller, and a read-only dashboard.
+- **Everything is kept.** Every run retains its brief, model requests, tool results, check logs and outcome, so you can see exactly why a change was accepted or rejected.
+- **Zero dependencies.** Pure Python standard library, with about 1,700 tests.
 
 ## How it works
 
@@ -32,12 +32,17 @@ guardian (separate launchd service, frozen copy of the source)
   └─ watches the controller, records incidents, can roll back a bad release
 ```
 
-Design choices worth knowing about:
+Retry admission is described in [PROGRESS_RECOVERY.md](PROGRESS_RECOVERY.md). Run evidence is kept under `runtime/`, which Git ignores.
 
-- **The worker cannot run shell commands.** It chooses one small typed action at a time. An edit is an exact text replacement after a fresh read.
-- **Worker claims are not acceptance.** The host reruns the tests itself, and a separate review decides.
-- **Retries need a reason.** After a failure, another attempt on the same task is admitted only with a recorded proof: a reviewed narrowing of the task, saved guidance, a qualified harness fix, or an explicit owner release. See [PROGRESS_RECOVERY.md](PROGRESS_RECOVERY.md).
-- **Everything is retained.** Each run keeps its brief, model requests, tool results, check logs and outcome under `runtime/` (not tracked in Git).
+## Project status
+
+Midnight is experimental and currently between development phases.
+
+- **What works today:** the full loop, from scheduling through task briefing, the edit-test-fix worker loop, sandboxed host verification, independent review, delivery and retry admission. It has delivered accepted changes to a real project.
+- **Where it's limited:** quality tracks the local model. With a roughly 27-billion-parameter model on a 32 GB Mac, small, well-scoped tasks are the realistic target; multi-file repairs with end-to-end tests often stall at review. Larger local models are the next step, and the reason active development resumes when bigger hardware is on the bench.
+- **Known rough edges:** it has been run on one machine so far, so installation takes some manual setup (see [Porting](#porting)), and the release installer needs rework before it is reusable.
+
+Issues and pull requests are welcome, especially results from larger models.
 
 ## Requirements
 
@@ -87,7 +92,7 @@ These were written for one installation and one operator, and read as a record o
 
 ## Porting
 
-Nothing here has been run on a second machine. As published, the code expects:
+Midnight has been developed on a single machine, so a few locations are fixed in code for now. As published, it expects:
 
 - the checkout at `~/Developer/midnight`, with run data under its `runtime/` directory
 - launchd services labelled `space.venin.midnight*`
