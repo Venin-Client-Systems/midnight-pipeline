@@ -70,6 +70,29 @@ class WorkerPolicyTests(unittest.TestCase):
   self.assertTrue(all(body['think'] is False for body in chats))
   self.assertTrue(all(len(json.dumps(body['messages']).encode())<=90000 for body in chats))
 
+ def test_cold_model_timeout_before_any_output_is_asked_again(self):
+  class ColdStart(Provider):
+   cold=2
+   def open(self, request, *, timeout):
+    if request.full_url.endswith('/api/chat') and self.cold:
+     self.cold-=1;raise TimeoutError('timed out')
+    return super().open(request,timeout=timeout)
+  with mock.patch.object(S,'SLOW_START_RESERVE',0):result,error,current,original,complete,receipts,output=self.exercise(ColdStart())
+  self.assertIsNone(error);self.assertEqual(result,0);self.assertTrue(complete)
+  self.assertEqual(output.count('"model.slow_start"'),2)
+
+ def test_model_that_never_answers_still_fails_the_attempt(self):
+  class Dead(Provider):
+   asked=0
+   def open(self, request, *, timeout):
+    if request.full_url.endswith('/api/chat'):
+     self.asked+=1;raise TimeoutError('timed out')
+    return super().open(request,timeout=timeout)
+  provider=Dead()
+  with mock.patch.object(S,'SLOW_START_RESERVE',0):result,error,current,original,complete,receipts,output=self.exercise(provider)
+  self.assertFalse(complete);self.assertEqual(current,original)
+  self.assertEqual(provider.asked,S.SLOW_START_RETRIES+1)
+
  def test_absent_file_uses_same_policy_and_verified_finish(self):
   provider=Provider(new_file=True);result,error,current,_,complete,_,_=self.exercise(provider)
   self.assertIsNone(error,str(error));self.assertEqual(result,0);self.assertTrue(complete)

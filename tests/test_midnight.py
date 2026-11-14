@@ -412,6 +412,15 @@ class IsolatedTests(unittest.TestCase):
         (statepath / "PAUSED").touch()
         self.assertFalse(M.eligible(self.project, at("2026-11-01T01:00")))
 
+    def test_zero_cloud_budget_means_local_only_and_never_blocks_local_work(self):
+        statepath = Path(self.project["state_dir"])
+        config = dict(M.read(self.root / "config.json"), max_cloud_calls_per_night=0)
+        M.write(self.root / "config.json", config)
+        M.write(statepath / "state.json", {"day": "2026-10-31", "attempts_today": 1, "cloud_calls_today": 0})
+        self.assertTrue(M.eligible(self.project, at("2026-10-31T01:00")))
+        M.write(statepath / "state.json", {"day": "2026-10-31", "attempts_today": 24, "cloud_calls_today": 0})
+        self.assertFalse(M.eligible(self.project, at("2026-10-31T01:00")))
+
     def test_continuous_override_lifts_volume_caps_then_restores_them(self):
         statepath = Path(self.project["state_dir"]) / "state.json"
         M.write(statepath, {"day": "2026-10-31", "attempts_today": 100, "cloud_calls_today": 100, "failures_today": 20})

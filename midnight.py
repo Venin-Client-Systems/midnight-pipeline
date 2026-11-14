@@ -538,7 +538,9 @@ def eligible(project, instant):
     # own unchanged budgets in the backend; a spent cloud quota cannot stop
     # otherwise eligible local work.
     if state.get("day") == today and config.get('routine_provider')!='local':
-        if any(config[limit] is not None and state.get(field, 0) >= config[limit] for field, limit in [
+        # A cloud budget of zero means cloud help is switched off, not used up.
+        if any(config.get(limit) is not None and (config[limit] or limit != "max_cloud_calls_per_night")
+               and state.get(field, 0) >= config[limit] for field, limit in [
             ("attempts_today", "max_attempts_per_night"), ("cloud_calls_today", "max_cloud_calls_per_night"),
             ("failures_today", "max_failures_per_night")]):
             return False

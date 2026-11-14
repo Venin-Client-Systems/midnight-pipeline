@@ -163,6 +163,10 @@ def load_manifest(path,work,*,model=None):
  return value
 
 
+SLOW_START_RETRIES=2
+SLOW_START_RESERVE=30
+
+
 def infer(model,messages,deadline,*,schema=None,predict=8192):
  if time.monotonic()>=deadline:raise TimeoutError('Worker deadline before inference')
  if len(json.dumps(messages).encode())>90000:raise ValueError('Worker inference input exceeds bounded context')
@@ -186,7 +190,15 @@ def infer(model,messages,deadline,*,schema=None,predict=8192):
   metrics.update(thinking_bytes=thinking_bytes,final_text_bytes=final_text_bytes,done_reason=(final or {}).get('done_reason'))
   return metrics
  try:
-  with opener.open(request,timeout=min(180,deadline-time.monotonic())) as response:
+  # A cold model can take longer than one socket timeout to load and read the
+  # prompt. Nothing has been generated yet, so asking again is safe and the
+  # second request meets a loaded model.
+  for slow_start in range(SLOW_START_RETRIES+1):
+   try:response=opener.open(request,timeout=min(180,deadline-time.monotonic()));break
+   except TimeoutError:
+    if slow_start==SLOW_START_RETRIES or deadline-time.monotonic()<=SLOW_START_RESERVE:raise
+    emit('model.slow_start',retry=slow_start+1)
+  with response:
    while True:
     raw=response.readline(1024*1024+1)
     if not raw:break
