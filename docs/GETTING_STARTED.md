@@ -180,14 +180,13 @@ Change the nightly window by editing `schedule` in `~/Developer/midnight/project
 
 - **Review sent it back.** Midnight retries by itself with the reviewer's reasons.
 - **Out of attempts.** Rewrite the task smaller or clearer in `backlog.json` and commit. A changed task is a new task.
-- **Harness problem** (`needs_harness_repair`). Something outside the model failed, such as the model server timing out. Once the cause is fixed, release it:
+- **Harness or model-server problem** (`needs_harness_repair`). Something outside the task failed, most often the model server not answering in time. Midnight will not guess that it is safe to repeat, so it waits for you. Fix the cause (free some memory, restart Ollama), then:
 
   ```sh
-  midnight pause myapp
-  /opt/homebrew/bin/python3 ~/Developer/midnight/progress_recovery.py --root ~/Developer/midnight \
-      --owner-release myapp --task T001 --reason "Model server restarted after running out of memory"
-  midnight resume myapp
+  midnight release myapp --task T001 --reason "Ollama restarted after running out of memory"
   ```
+
+  The release allows one more attempt and is kept in the record with your reason.
 
 ## 10. Change the model
 

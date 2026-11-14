@@ -208,12 +208,21 @@ def harness_certificate_matches(certificate,failure):
    and certificate.get('from_components')==failure['components'] and certificate.get('model')==failure.get('model')
    and (not certificate.get('from_contract') or certificate['from_contract']==failure.get('worker_contract')))
 
+def model_never_answered(failure):
+ """The model server timed out before producing anything: a fault of the machine's state, not of the harness sources."""
+ worker=failure.get('worker_failure') if isinstance(failure,dict) else None
+ metrics=worker.get('metrics') if isinstance(worker,dict) else None
+ return bool(isinstance(metrics,dict) and worker.get('error_class')=='TimeoutError' and worker.get('completion_reason')=='stream_error'
+   and not any(metrics.get(k) for k in ('prompt_eval_count','eval_count','thinking_bytes','final_text_bytes')))
+
 def owner_release_matches(evidence,failure,proof_components):
- """The owner's explicit release of this exact recorded harness failure, offered after its sources changed."""
+ """The owner's explicit release of this exact recorded harness failure: after its sources changed, or for the one run in which the model never answered."""
  release=evidence.get('owner_release') if isinstance(evidence,dict) else None
  old=failure.get('components') if isinstance(failure,dict) else None
- return bool(isinstance(release,dict) and isinstance(old,dict) and old and failure.get('kind') in HARNESS_FAILURES
-   and release.get('failure_fingerprint')==failure.get('fingerprint') and release.get('from_components')==old and proof_components!=old)
+ if not (isinstance(release,dict) and isinstance(old,dict) and old and failure.get('kind') in HARNESS_FAILURES
+   and release.get('failure_fingerprint')==failure.get('fingerprint') and release.get('from_components')==old):return False
+ if release.get('model_never_answered'):return bool(model_never_answered(failure) and failure.get('run') and release.get('run')==failure['run'])
+ return proof_components!=old
 
 class Recovery:
  def __init__(self,runtime,project,*,clock=time.time,evidence_roots=()):
@@ -489,11 +498,16 @@ class Recovery:
    failure=json.loads(row['payload']) if row else {}
    if not row or row['state']!='needs_harness_repair' or failure.get('kind') not in HARNESS_FAILURES:raise RecoveryHeld('Scope is not held for harness repair')
    old=failure.get('components')
-   if not isinstance(old,dict) or not old or old==components():raise RecoveryHeld('Recovery sources are unchanged since the recorded failure')
+   if not isinstance(old,dict) or not old:raise RecoveryHeld('Recorded failure has no recovery sources')
+   unanswered=old==components() and model_never_answered(failure) and bool(failure.get('run'))
+   if old==components() and not unanswered:raise RecoveryHeld('Recovery sources are unchanged since the recorded failure')
    if not isinstance(failure.get('model'),dict) or not failure['model'].get('model'):raise RecoveryHeld('Recorded failure has no exact worker model')
-   evidence={'owner_release':{'failure_fingerprint':failure['fingerprint'],'from_components':old,'reason':reason.strip(),'qualified':False},
-     'instruction':'The owner released this harness hold after the worker harness changed. Continue the original task; every original obligation and final gate remains.'}
-   return self._offer(con,identity,'owner_harness_release',fingerprint({'failure':failure['fingerprint'],'components':components()}),failure['model'],evidence)
+   release={'failure_fingerprint':failure['fingerprint'],'from_components':old,'reason':reason.strip(),'qualified':False}
+   if unanswered:release.update(model_never_answered=True,run=failure['run'])
+   evidence={'owner_release':release,
+     'instruction':('The owner released this hold after the local model server failed to answer. ' if unanswered else 'The owner released this harness hold after the worker harness changed. ')
+       +'Continue the original task; every original obligation and final gate remains.'}
+   return self._offer(con,identity,'owner_harness_release',fingerprint({'failure':failure['fingerprint'],'components':components(),**({'run':failure['run']} if unanswered else {})}),failure['model'],evidence)
 
  def _admission(self,con,identity,model=None,*,observation=None):
   if not self._scope(con,identity['id']):return {'allowed':False,'state':'diagnosing','reason':'not_enrolled','proof':None}

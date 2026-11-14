@@ -213,6 +213,35 @@ class OwnerHarnessReleaseTests(unittest.TestCase):
    second=self.store.offer_owner_release(self.scope,self.REASON);self.assertNotEqual(first,second)
    self.assertEqual(self.store.admission(self.scope,self.model)['proof'],second)
 
+ def unanswered(self,run):
+  directory=self.failure(run)
+  (directory/'worker-tools/decision-4.json').write_text(json.dumps({'schema_version':2,'status':'failed','phase':'decision','error_class':'TimeoutError',
+      'completion_reason':'stream_error','requested_budget':1024,'worker_contract':S.CONTRACT,'model':self.model,
+      'inference_policy':{'version':S.INFERENCE_POLICY,'thinking_capable':True},
+      'metrics':{'prompt_eval_count':None,'eval_count':None,'thinking_bytes':0,'final_text_bytes':0,'done_reason':None}}))
+  self.store.observe(self.scope,run,directory);return directory
+
+ def test_a_model_that_never_answered_can_be_released_once_without_a_source_change(self):
+  self.unanswered('silent')
+  self.assertEqual(self.store.admission(self.scope,self.model)['state'],'needs_harness_repair')
+  proof=self.store.offer_owner_release(self.scope,self.REASON)
+  decision=self.store.admission(self.scope,self.model)
+  self.assertTrue(decision['allowed']);self.assertEqual(decision['proof'],proof)
+  self.assertIs(decision['intervention']['owner_release']['model_never_answered'],True)
+  self.store.reserve(self.scope,'after-silence',self.model)
+  self.assertFalse(self.store.admission(self.scope,self.model)['allowed'])
+  with self.assertRaises(R.RecoveryHeld):self.store.reserve(self.scope,'again',self.model)
+
+ def test_each_silent_run_needs_its_own_release_and_a_real_defect_still_needs_changed_sources(self):
+  self.unanswered('silent-one');first=self.store.offer_owner_release(self.scope,self.REASON)
+  self.store.reserve(self.scope,'retry-one',self.model);self.unanswered('retry-one')
+  self.assertFalse(self.store.admission(self.scope,self.model)['allowed'])
+  second=self.store.offer_owner_release(self.scope,self.REASON);self.assertNotEqual(first,second)
+  self.assertEqual(self.store.admission(self.scope,self.model)['proof'],second)
+  self.store.reserve(self.scope,'retry-two',self.model)
+  truncated=self.failure('retry-two');self.store.observe(self.scope,'retry-two',truncated)
+  with self.assertRaises(R.RecoveryHeld):self.store.offer_owner_release(self.scope,self.REASON)
+
  def test_command_requires_a_paused_project_and_reports_real_admission(self):
   root=self.root/'midnight';(root/'runtime').mkdir(parents=True)
   (root/'projects.json').write_text(json.dumps({'projects':[{'id':'fixture','path':str(self.root),'state_dir':str(self.root)}]}))

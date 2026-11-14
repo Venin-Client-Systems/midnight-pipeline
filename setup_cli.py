@@ -25,7 +25,7 @@ PYTHON = '/opt/homebrew/bin/python3'
 OLLAMA = 'http://127.0.0.1:11434'
 LABELS = {'controller': 'space.venin.midnight', 'dashboard': 'space.venin.midnight-dashboard'}
 MARKER = '# Midnight launcher'
-COMMANDS = ('setup', 'uninstall', 'init', 'add-task', 'try')
+COMMANDS = ('setup', 'uninstall', 'init', 'add-task', 'try', 'release')
 WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri']
 INSTRUCTION = ('Work through the backlog one task at a time. Give the local worker one observable behaviour per task, '
                'keep the file scope explicit, keep existing tests passing and add a test for each new behaviour.')
@@ -483,6 +483,29 @@ def try_demo(args):
     return 0
 
 
+def release(args):
+    """Let a task held after a harness or model-server fault try once more."""
+    data = registry_or_fail()
+    project = next((p for p in data['projects'] if p['id'] == args.project), None)
+    if project is None:
+        raise SetupError(f'Unknown project {args.project}. See: midnight projects')
+    import progress_recovery
+    marker = Path(project['state_dir']) / 'PAUSED'
+    paused_here = not marker.exists()
+    if paused_here:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.touch()
+    try:
+        progress_recovery.owner_release(ROOT, args.project, args.task, args.reason)
+    except progress_recovery.RecoveryHeld as problem:
+        raise SetupError(f'{problem}. `midnight repair-status {args.project}` shows what the task is waiting for.') from None
+    finally:
+        if paused_here:
+            marker.unlink(missing_ok=True)
+    say(f'{args.task} may try once more. It runs in the next window, or now with: midnight override --for 60m --reason "retry"')
+    return 0
+
+
 def add_parsers(sub):
     p = sub.add_parser('setup', help='Install Midnight on this Mac: model, schedule, services and the midnight command')
     p.add_argument('--model', help='Ollama model to use; default is the largest installed model that fits in memory')
@@ -508,12 +531,16 @@ def add_parsers(sub):
     p.add_argument('--accept', action='append', default=[], required=True, help='An acceptance criterion a test can prove; repeat for more')
     p.add_argument('--file', action='append', default=[], required=True, help='A file in scope (one to four); include a tests/test_unit_*.py file')
     p.add_argument('--id', help='Task id; default is the next T-number')
+    p = sub.add_parser('release', help='Let a held task try once more after you fixed what stopped it')
+    p.add_argument('project')
+    p.add_argument('--task', required=True)
+    p.add_argument('--reason', required=True, help='What was wrong and what changed (20 to 500 characters); kept in the record')
     p = sub.add_parser('try', help='Create a demo project and run one task now')
     p.add_argument('--path', help='Where to create the demo project (default ~/Developer/midnight-demo)')
 
 
 def main(args):
-    handler = {'setup': setup, 'uninstall': uninstall, 'init': init, 'add-task': add_task, 'try': try_demo}[args.command]
+    handler = {'setup': setup, 'uninstall': uninstall, 'init': init, 'add-task': add_task, 'try': try_demo, 'release': release}[args.command]
     try:
         return handler(args)
     except SetupError as problem:

@@ -180,6 +180,21 @@ class ProjectTests(Fixture):
                 self.task(**values)
         self.assertEqual(json.loads((self.path / 'orchestration/backlog.json').read_text()), [])
 
+    def test_release_pauses_only_for_the_release_and_explains_a_refusal(self):
+        self.connect(self.path)
+        import progress_recovery
+        marker = self.root / 'runtime/projects/example-app/PAUSED'
+        seen = []
+        with mock.patch.object(progress_recovery, 'owner_release', side_effect=lambda *a: seen.append((a, marker.exists()))):
+            self.assertEqual(S.release(arguments(project='example-app', task='T001', reason='Model server restarted after a stall')), 0)
+        self.assertEqual(seen, [((self.root, 'example-app', 'T001', 'Model server restarted after a stall'), True)])
+        self.assertFalse(marker.exists())
+        marker.touch()
+        with mock.patch.object(progress_recovery, 'owner_release', side_effect=progress_recovery.RecoveryHeld('Recovery sources are unchanged')):
+            with self.assertRaisesRegex(S.SetupError, 'unchanged.*repair-status'):
+                S.release(arguments(project='example-app', task='T001', reason='Model server restarted after a stall'))
+        self.assertTrue(marker.exists())
+
     def test_try_builds_a_demo_whose_task_is_valid_and_whose_tests_pass(self):
         target = self.base / 'demo'
         launch = mock.Mock(return_value=subprocess.CompletedProcess([], 0, '', ''))
