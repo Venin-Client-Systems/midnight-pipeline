@@ -369,7 +369,7 @@ def project_config(name, data, packages):
             'source_globs': [p + '/*.py' for p in packages] + [p + '/**/*.py' for p in packages],
             'worker_allowed_patterns': [p + '/*.py' for p in packages] + [p + '/**/*.py' for p in packages] + ['tests/test_*.py', 'docs/*.md'],
             'retry_anchors': ['docs'], 'run_trailer': 'Midnight-Run',
-            'grow_quality_profile': False,
+            'grow_quality_profile': False, 'test_loopback': False,
             'host_checks': [{'command': [PYTHON, '-m', 'unittest', 'discover', '-s', 'tests', '-v'], 'timeout_seconds': 240},
                             {'command': [PYTHON, '-m', 'compileall', '-q', *packages], 'timeout_seconds': 90}]}
 
@@ -459,6 +459,17 @@ def init(args):
              orchestration / 'config.json': json.dumps(project_config(name, data, packages), indent=2) + '\n',
              orchestration / 'backlog.json': '[]\n',
              repository / 'ROADMAP.md': f'# {name} roadmap\n\nWhat this project is for and where it is going. Midnight gives this to the local model as background.\n'}
+    # These two files decide what runs on this Mac for the project: supervisor.py runs with the
+    # user's permissions, and config.json sets the sandbox limits. A copy that came with the
+    # repository (for example from a clone) is used only when the owner says so.
+    inherited = [path.name for path in (orchestration / 'supervisor.py', orchestration / 'config.json')
+                 if path.exists() and path.read_text(errors='replace') != files[path]]
+    if inherited and not getattr(args, 'trust_existing', False):
+        raise SetupError(f"{repository} already contains orchestration/{' and orchestration/'.join(inherited)}, "
+                         'and not as Midnight would write them.\n'
+                         'supervisor.py runs on your Mac with your permissions and config.json sets the sandbox limits, so '
+                         'read them first.\nThen either delete the orchestration folder and run init again for fresh files, '
+                         'or keep them with: midnight init ' + shlex.quote(str(repository)) + ' --trust-existing')
     for path, content in files.items():
         if not path.exists():
             path.write_text(content)
@@ -650,6 +661,7 @@ def add_parsers(sub):
     p.add_argument('--name', help='Display name; default is the folder name')
     p.add_argument('--why', help='One sentence on what the project is for')
     p.add_argument('--no-commit', action='store_true', help='Write the orchestration files but do not commit them')
+    p.add_argument('--trust-existing', action='store_true', help='Use orchestration files already in the project (read them first: they run on your Mac)')
     p = sub.add_parser('add-task', help='Add a task to a connected project\'s backlog')
     p.add_argument('project')
     p.add_argument('--title', required=True)

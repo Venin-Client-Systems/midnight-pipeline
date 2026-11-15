@@ -12,7 +12,7 @@ A night, illustrated:
 00:00  window opens                 ──▶  pick task T014 from the backlog
 00:01  local model plans            ──▶  one bounded brief, explicit file scope
 00:02  local model implements       ──▶  read · edit · run tests · fix · finish
-00:08  host reruns every check      ──▶  sandboxed, loopback-only network
+00:08  host reruns every check      ──▶  sandboxed, no network
 00:10  independent review           ──▶  accept, or revise with reasons
 00:11  delivered                    ──▶  commit (and a pull request, if you want)
        …next task…
@@ -33,7 +33,7 @@ A night, illustrated:
 - The model never gets a shell. It chooses one small typed action at a time: `read_file`, `edit_file`, `run_tests`, `finish`.
 - Edits are exact text replacements after a fresh read; stale or ambiguous matches are rejected.
 - Writes are limited to the files the task names. Tests you mark as protected can't be weakened.
-- Test runs happen in a macOS sandbox: no forks, no writes outside a scratch directory, loopback-only network.
+- Test runs happen in a macOS sandbox: no forks, no writes outside a scratch directory, no network (a project can allow local-only connections if its tests need them). See [SECURITY.md](SECURITY.md).
 
 **Verification the model can't talk its way past**
 - The host reruns the task's own tests and your project's full checks after every attempt.

@@ -244,7 +244,8 @@ def typed_worker_manifest(task,work,directory,config,micro,env):
     if not executable:raise ManagerHeld('Worker test runtime is unavailable before coding launch')
     manifest={'version':1,'workspace':str(work.resolve()),'task_id':task['id'],'allowed_files':task.get('local_worker_files',task['files']),
         'test_command':[executable,*command[1:]],'check_kind':'syntax' if managed else 'standalone_compatibility','timeout_seconds':config['worker_timeout_seconds'],
-        'read_roots':SETTINGS.get('validation_read_roots',[]),'scratch_roots':SETTINGS.get('validation_scratch_roots',[]),'toolchain_path':env['PATH']}
+        'read_roots':SETTINGS.get('validation_read_roots',[]),'scratch_roots':SETTINGS.get('validation_scratch_roots',[]),'toolchain_path':env['PATH'],
+        'test_loopback':SETTINGS.get('test_loopback',True) is not False}
     feedback=worker_feedback_check(task) if managed and not micro else None
     if feedback and shutil.which(feedback[0],path=env['PATH']):manifest['focused_command']=[shutil.which(feedback[0],path=env['PATH']),*feedback[1:]]
     if GP.matches(config.get('worker_model')):manifest['model_profile_sha256']=config['worker_model']['parameters_sha256']
@@ -1048,12 +1049,15 @@ def host_checks(work, directory, cutoff, state, checks, *, timeouts=None, stop_o
     profile = "\n".join([
         "(version 1)", "(allow default)", "(deny file-write*)",
         f"(allow file-write* (subpath {quote(str(work))}) (subpath {quote(str(temporary))}) (literal \"/dev/null\"))",
-        f"(deny file-read* (subpath {quote(str(Path.home()))}))",
+        f"(deny file-read* (subpath {quote(str(Path.home()))}) (subpath \"/Users\") (subpath \"/Volumes\") (subpath \"/Library/Keychains\"))",
         f"(allow file-read* (subpath {quote(str(work))}) (subpath {quote(str(temporary))}) (subpath {quote(str(ROOT / ACCEPTANCE_DIR))}))",
-        "(deny network*)", "(allow network-bind (local ip \"localhost:*\"))",
-        "(allow network-inbound (local ip \"localhost:*\"))",
-        "(allow network-outbound (remote ip \"localhost:*\"))",
+        "(deny network*)",
     ])
+    # Loopback lets tests start a local server, and also lets test code reach every other
+    # service listening on this Mac. A project can switch it off with test_loopback false.
+    if SETTINGS.get("test_loopback", True) is not False:
+        profile += ('\n(allow network-bind (local ip "localhost:*"))\n(allow network-inbound (local ip "localhost:*"))'
+                    '\n(allow network-outbound (remote ip "localhost:*"))')
     for allowed in SETTINGS.get("validation_read_roots", []):
         profile += "\n(allow file-read* (subpath " + quote(str(Path(allowed).resolve())) + "))"
     # Node initialises inherited file stdout with fcntl. Permit only these host

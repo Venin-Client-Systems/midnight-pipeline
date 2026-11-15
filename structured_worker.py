@@ -286,7 +286,7 @@ def test_profile(work,directory,manifest,log):
  temporary=directory/'test-tmp';temporary.mkdir(exist_ok=True)
  quote=json.dumps
  profile='\n'.join(['(version 1)','(allow default)','(deny network*)','(deny process-fork)','(deny signal)','(deny file-write*)',
-  '(deny file-read* (subpath '+quote(str(Path.home()))+'))',
+  '(deny file-read* (subpath '+quote(str(Path.home()))+') (subpath "/Users") (subpath "/Volumes") (subpath "/Library/Keychains"))',
   '(allow file-read* (subpath '+quote(str(work))+') (subpath '+quote(str(temporary))+'))',
   '(allow file-write* (subpath '+quote(str(temporary))+') (literal "/dev/null"))'])
  if manifest.get('loopback') is True:
@@ -376,7 +376,7 @@ class Worker:
    emit('item.completed',item={'type':'command_execution','command':' '.join(self.manifest['test_command']),'exit_code':result['code'],'status':'completed','aggregated_output':result['output']})
    if self.manifest.get('focused_command') and result['code']==0 and result['reason']=='exited':
     # Advisory feedback only: the handoff receipt stays bound to the fixed check above.
-    focused=run_tests(self.work,self.directory/('focused-'+str(self.sequence)),dict(self.manifest,test_command=self.manifest['focused_command'],loopback=True),deadline)
+    focused=run_tests(self.work,self.directory/('focused-'+str(self.sequence)),dict(self.manifest,test_command=self.manifest['focused_command'],loopback=self.manifest.get('test_loopback',True) is not False),deadline)
     self.focused_failed=focused['code']!=0 or focused['reason']!='exited'
     emit('item.completed',item={'type':'command_execution','command':' '.join(self.manifest['focused_command']),'exit_code':focused['code'],'status':'completed','aggregated_output':focused['output']})
     return dict(result,focused_test={k:focused[k] for k in ('code','reason','command','output')})

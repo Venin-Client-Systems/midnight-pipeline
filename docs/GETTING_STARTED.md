@@ -111,7 +111,9 @@ Your project needs to be:
 
 It also registers the project in Midnight's own `projects.json`. Midnight never pushes anywhere: accepted work is a local commit on your current branch.
 
-Check `orchestration/config.json` once. `worker_allowed_patterns` lists the only paths the worker can write, and by default every test that exists today is protected: the worker can add tests but cannot change the ones you already have.
+If the project already contains `orchestration/supervisor.py` or `config.json` that Midnight did not write (for example, you cloned it from someone else), `init` stops and asks you to read them first: they run on your Mac. Delete the folder for fresh files, or pass `--trust-existing` once you are satisfied.
+
+Check `orchestration/config.json` once. `worker_allowed_patterns` lists the only paths the worker can write, and by default every test that exists today is protected: the worker can add tests but cannot change the ones you already have. `test_loopback` is `false`: tests run with no network at all. Set it to `true` only if your tests start a local server; [SECURITY.md](../SECURITY.md) explains the trade.
 
 ## 5. Write tasks a local model can finish
 
@@ -141,7 +143,7 @@ Inside the schedule window, the controller wakes every minute and, for each conn
 1. picks the next task from the backlog
 2. clones the project into a private workspace, so your working copy is never touched mid-task
 3. lets the local model work through typed actions: `read_file`, `edit_file`, `run_tests`, `finish`. It has no shell and can only write the task's files
-4. reruns the task's tests and the full test suite itself, in a macOS sandbox with loopback-only network
+4. reruns the task's tests and the full test suite itself, in a macOS sandbox with no network
 5. has a separate review pass score the change and accept or reject it
 6. commits an accepted change to your repository, with a trailer naming the run
 

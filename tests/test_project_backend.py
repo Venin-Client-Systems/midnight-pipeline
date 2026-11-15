@@ -111,6 +111,17 @@ class ProjectBackendTests(unittest.TestCase):
         self.assertIn('(literal "'+str(folder/'check-0.log')+'")',profile)
         self.assertNotIn('(subpath "'+str(folder)+'")',profile)
 
+    def test_host_check_sandbox_denies_other_homes_and_allows_loopback_only_when_the_project_does(self):
+        s=self.backend('notes');folder=self.root/'check';folder.mkdir()
+        def result(*args,**kwargs):return {'code':0,'reason':'exited','seconds':0}
+        with mock.patch.object(s,'run',side_effect=result):
+            s.host_checks(s.ROOT,folder,None,{},[['python3','-c','1']])
+            profile=(folder/'validation.sb').read_text()
+            self.assertIn('(subpath "/Users") (subpath "/Volumes")',profile);self.assertIn('localhost:*',profile)
+            with mock.patch.dict(s.SETTINGS,{'test_loopback':False}):
+                s.host_checks(s.ROOT,folder,None,{},[['python3','-c','1']])
+        self.assertNotIn('localhost',(folder/'validation.sb').read_text())
+
     def test_review_check_output_is_real_and_bounded(self):
         folder=self.root/'receipts';folder.mkdir()
         Q.write(folder/'checks.json',[{'command':['node','test.js'],'code':0,'reason':'exited'}])

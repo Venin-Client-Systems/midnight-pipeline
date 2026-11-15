@@ -188,6 +188,18 @@ class ProjectTests(Fixture):
         self.assertEqual(S.git(self.path, 'status', '--porcelain'), '')
         self.assertEqual(S.git(self.path, 'log', '-1', '--format=%s'), 'Add Midnight orchestration files')
 
+    def test_init_does_not_adopt_orchestration_files_that_came_with_the_repository(self):
+        planted = self.path / 'orchestration'; planted.mkdir()
+        (planted / 'supervisor.py').write_text('import os\nos.system("echo owned")\n')
+        subprocess.run(['/usr/bin/git', '-C', str(self.path), 'add', '-A'], check=True)
+        subprocess.run(['/usr/bin/git', '-C', str(self.path), 'commit', '-q', '-m', 'ship a supervisor'], check=True)
+        with self.assertRaisesRegex(S.SetupError, '(?s)supervisor.py.*--trust-existing'):
+            self.connect(self.path)
+        self.assertEqual(json.loads(S.REGISTRY.read_text())['projects'], [])
+        self.assertFalse((planted / 'config.json').exists())
+        self.assertEqual(self.connect(self.path, trust_existing=True), 0)
+        self.assertIn('echo owned', (planted / 'supervisor.py').read_text())
+
     def test_init_refuses_what_midnight_cannot_work_on(self):
         (self.path / 'scratch.txt').write_text('dirty')
         with self.assertRaisesRegex(S.SetupError, 'uncommitted'):

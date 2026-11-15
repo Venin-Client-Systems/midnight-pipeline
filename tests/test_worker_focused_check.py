@@ -164,4 +164,19 @@ class T(unittest.TestCase):
         self.assertNotEqual(denied['code'],0);self.assertIn('Operation not permitted',denied['output'])
         self.assertNotIn('localhost',(self.directory/'syntax/test.sb').read_text())
 
+    def test_sandboxed_tests_cannot_read_shared_or_external_folders(self):
+        (self.work/'tests/test_unit_loop.py').write_text("""import os,unittest
+class T(unittest.TestCase):
+    def test_read(self):
+        for folder in ('/Users/Shared','/Volumes','/Users'):
+            with self.assertRaises(PermissionError):os.listdir(folder)
+""")
+        result=self.run_check('reads')
+        self.assertEqual((result['code'],result['reason']),(0,'exited'),result['output'])
+
+    def test_without_loopback_the_focused_run_cannot_open_a_local_connection(self):
+        denied=self.run_check('off',loopback=False)
+        self.assertNotEqual(denied['code'],0);self.assertIn('Operation not permitted',denied['output'])
+        self.assertNotIn('localhost',(self.directory/'off/test.sb').read_text())
+
 if __name__=='__main__':unittest.main()

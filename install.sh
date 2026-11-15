@@ -9,6 +9,10 @@
 #   curl -fsSL .../install.sh | bash -s -- --model qwen3-coder:30b --every-day
 set -euo pipefail
 
+# Everything runs inside main, called on the last line, so a download that is cut off
+# part-way cannot run half of this script.
+main() {
+
 REPOSITORY="${MIDNIGHT_REPOSITORY:-https://github.com/Venin-Client-Systems/midnight-pipeline.git}"
 BRANCH="${MIDNIGHT_BRANCH:-main}"
 TARGET="${MIDNIGHT_HOME:-$HOME/Developer/midnight}"
@@ -100,3 +104,6 @@ else
 fi
 
 exec "$PYTHON" "$TARGET/midnight.py" setup "$@"
+}
+
+main "$@"
