@@ -84,11 +84,7 @@ Retry admission is described in [PROGRESS_RECOVERY.md](PROGRESS_RECOVERY.md). Ru
 
 ## Quick start
 
-You need an Apple Silicon Mac, [Homebrew](https://brew.sh) Python (`brew install python`), and [Ollama](https://ollama.com) running with one coding model:
-
-```sh
-ollama pull qwen3-coder:30b      # about 19 GB; good on a 32 GB Mac. Any Ollama model with tool support works.
-```
+You need an Apple Silicon Mac. Open Terminal and paste the install command. On a new Mac it first lists what is missing (Apple's developer tools, Homebrew, Python, Ollama, a coding model sized to your memory) with the exact command for each; do those, then run it again.
 
 **1. Install**
 

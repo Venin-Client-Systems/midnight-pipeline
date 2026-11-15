@@ -133,8 +133,12 @@ class SetupTests(Fixture):
         self.assertEqual(S.choose_model(models, 32 * 2**30, 'big'), 'big')
         with self.assertRaisesRegex(S.SetupError, 'ollama pull absent'):
             S.choose_model(models, 32 * 2**30, 'absent')
-        with self.assertRaisesRegex(S.SetupError, 'ollama pull'):
+        with self.assertRaisesRegex(S.SetupError, r'(?s)32 GB of memory.*ollama pull qwen3-coder:30b.*midnight\.py setup'):
             S.choose_model([], 32 * 2**30)
+        with self.assertRaisesRegex(S.SetupError, 'ollama pull qwen2.5-coder:14b'):
+            S.choose_model([], 16 * 2**30)
+        with self.assertRaisesRegex(S.SetupError, 'ollama pull qwen2.5-coder:7b'):
+            S.choose_model([], 8 * 2**30)
 
     def test_uninstall_removes_only_what_setup_created(self):
         self.run_setup()

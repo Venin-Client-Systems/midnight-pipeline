@@ -24,6 +24,7 @@ REGISTRY = ROOT / 'projects.json'
 PROFILES = ROOT / 'quality_profiles'
 RECEIPT = ROOT / 'runtime' / 'setup.json'
 PYTHON = '/opt/homebrew/bin/python3'
+BREW = '/opt/homebrew/bin/brew'
 OLLAMA = 'http://127.0.0.1:11434'
 LABELS = {'controller': 'space.venin.midnight', 'dashboard': 'space.venin.midnight-dashboard'}
 MARKER = '# Midnight launcher'
@@ -45,7 +46,7 @@ class SetupError(ValueError):
 
 
 def say(text=''):
-    print(text)
+    print(text, flush=True)
 
 
 def read(path, default=None):
@@ -93,16 +94,36 @@ def prerequisites():
               'Midnight uses the macOS sandbox and launchd, and needs an Apple Silicon Mac.')]
     version = run([PYTHON, '-c', 'import sys;print(sys.version_info >= (3, 12))']).stdout.strip() if Path(PYTHON).exists() else ''
     items.append(('Python 3.12+ from Homebrew', version == 'True',
-                  'Install Homebrew from https://brew.sh, then run: brew install python'))
-    items.append(('Git', run(['/usr/bin/git', '--version']).returncode == 0, 'Run: xcode-select --install'))
+                  f'Run:  {BREW} install python\n'
+                  '           If Homebrew itself is missing, install it first:\n'
+                  '           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'))
+    items.append(('Git', run(['/usr/bin/xcode-select', '-p']).returncode == 0 and run(['/usr/bin/git', '--version']).returncode == 0,
+                  'Run:  xcode-select --install   (a window opens: click Install and wait until it is done)'))
     items.append(('macOS sandbox', Path('/usr/bin/sandbox-exec').exists(), 'sandbox-exec is part of macOS; update macOS.'))
     try:
         ollama('/api/version')
         reachable = True
     except OSError:
         reachable = False
-    items.append(('Ollama running', reachable, 'Install Ollama from https://ollama.com and open it, then run setup again.'))
+    items.append(('Ollama running', reachable,
+                  f'Ollama runs the AI model on your Mac. Run:  {BREW} install ollama && {BREW} services start ollama\n'
+                  '           (If you use the Ollama app instead, open it.)'))
     return items
+
+
+def recommended_model(memory):
+    """A widely available coding model that fits this much memory: (name, download size)."""
+    gigabytes = memory / 2**30
+    if gigabytes >= 32:
+        return 'qwen3-coder:30b', '19 GB'
+    if gigabytes >= 16:
+        return 'qwen2.5-coder:14b', '9 GB'
+    return 'qwen2.5-coder:7b', '5 GB'
+
+
+def again():
+    """The command that reruns setup, usable before the midnight command is on PATH."""
+    return f'{PYTHON} {shlex.quote(str(ROOT / "midnight.py"))} setup'
 
 
 def local_models():
@@ -129,8 +150,11 @@ def choose_model(models, memory, wanted=None):
         return fitting[0]['model']
     if models:
         return models[-1]['model']
-    raise SetupError('No local coding model is installed. Run: ollama pull qwen3-coder:30b   (about 19 GB; needs 32 GB of memory)\n'
-                     'Then run setup again. Any Ollama model with tool support works; bigger models finish more tasks.')
+    name, size = recommended_model(memory)
+    raise SetupError(f'No coding model is installed yet. This Mac has {round(memory / 2**30)} GB of memory, so this one fits '
+                     f'(about {size} to download):\n\n    ollama pull {name}\n\n'
+                     f'Then run setup again:\n\n    {again()}\n\n'
+                     'Any Ollama model with tool support works; bigger models finish more tasks.')
 
 
 def new_registry(timezone, start, end, days):
@@ -221,11 +245,16 @@ def setup(args):
         say(f"  {'ok ' if passed else 'MISSING'}  {name}" + ('' if passed else f'\n           {fix}'))
         failed = failed or not passed
     if failed:
-        raise SetupError('Fix the items marked MISSING, then run setup again.')
+        raise SetupError(f'Fix the items marked MISSING, then run setup again:\n\n    {again()}')
     kept = None if args.model else (read(RECEIPT) or {}).get('model')
     models = local_models()
     model = kept if kept in [m['model'] for m in models] else choose_model(models, memory_bytes(), args.model)
     say(f'\n  Model: {model}' + (' (kept from the last setup; change it with --model)' if model == kept else ''))
+    size = next((m['bytes'] for m in models if m['model'] == model), 0)
+    if size > memory_bytes() * 0.6:
+        name, _ = recommended_model(memory_bytes())
+        say(f'         Warning: this model is large for this Mac\'s memory and will be very slow. A better fit:\n'
+            f'         ollama pull {name}   then   {again()} --model {name}')
     data = read(REGISTRY)
     if data is None:
         timezone = args.timezone or system_timezone()

@@ -21,10 +21,12 @@ This guide takes you from nothing to a project that Midnight works on every nigh
 | You need | How to get it |
 | --- | --- |
 | Apple Silicon Mac, ideally 32 GB of memory or more | Midnight uses the macOS sandbox and launchd |
-| Homebrew Python 3.12+ | Install [Homebrew](https://brew.sh), then `brew install python` |
 | Git | `xcode-select --install` |
-| Ollama, running | Install from [ollama.com](https://ollama.com) and open it |
-| One coding model with tool support | `ollama pull qwen3-coder:30b` (about 19 GB) |
+| Homebrew Python 3.12+ | Install [Homebrew](https://brew.sh), then `brew install python` |
+| Ollama, running | `brew install ollama && brew services start ollama`, or the app from [ollama.com](https://ollama.com) |
+| One coding model with tool support | 32 GB or more: `ollama pull qwen3-coder:30b` (19 GB). 16 GB: `ollama pull qwen2.5-coder:14b` (9 GB) |
+
+You do not have to work through this table by hand. Run the install command in the next section on a new Mac and it lists exactly what is missing, in order, with the command to paste for each one, including a model sized to your Mac's memory. Run it again when you have done them.
 
 The model matters more than anything else here. A 24–30B coding model on 32 GB finishes small, well-described tasks. With more memory, pull a bigger model: Midnight uses whatever you give it.
 
