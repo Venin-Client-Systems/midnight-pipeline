@@ -369,6 +369,7 @@ def project_config(name, data, packages):
             'source_globs': [p + '/*.py' for p in packages] + [p + '/**/*.py' for p in packages],
             'worker_allowed_patterns': [p + '/*.py' for p in packages] + [p + '/**/*.py' for p in packages] + ['tests/test_*.py', 'docs/*.md'],
             'retry_anchors': ['docs'], 'run_trailer': 'Midnight-Run',
+            'grow_quality_profile': False,
             'host_checks': [{'command': [PYTHON, '-m', 'unittest', 'discover', '-s', 'tests', '-v'], 'timeout_seconds': 240},
                             {'command': [PYTHON, '-m', 'compileall', '-q', *packages], 'timeout_seconds': 90}]}
 

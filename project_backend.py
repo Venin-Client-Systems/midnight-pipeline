@@ -2621,6 +2621,16 @@ def profile_source_exists(commit, path):
         return False
 
 
+def profile_growth_wanted(task, state, config):
+    """Whether an accepted feature must be described in the quality profile before the next one.
+
+    A project whose required check already discovers every test (grow_quality_profile false)
+    gains nothing from the extra model step, and a refusal there would hold the project.
+    """
+    return bool(task.get("kind", "feature") == "feature" and SETTINGS.get("grow_quality_profile", True)
+                and (config.get("quality_profile") or task["id"] in state.get("feature_tickets", {})))
+
+
 def grow_quality_profile(state, config, cutoff, engine):
     pending = PM.pending_updates(STATE, PROJECT_ID, limit=1)
     if not pending:
@@ -2799,7 +2809,7 @@ def reconcile_quality_acceptance(task, state, config, directory, commit):
                     engine.resolve_finding(identity, {'accepted_commit': commit, 'checks_passed': True,
                         'review_approved': True, 'run': directory.name, 'protected_check': check['id']})
     rescue_store().resolve_episode(PROJECT_ID, issue_episode(task, state), {"accepted_commit": commit, "checks_passed": True, "review_approved": True})
-    if task.get("kind", "feature") == "feature" and (config.get("quality_profile") or task["id"] in state.get("feature_tickets", {})):
+    if profile_growth_wanted(task, state, config):
         changed = read(directory / "candidate-checkpoint.json").get("files", [])
         if any(path.startswith(tuple(p + "/" for p in PRODUCT_DIRS)) and path.endswith(SOURCE_SUFFIXES) for path in changed):
             PM.queue_update(STATE, PROJECT_ID, dict(task, files=changed), commit,

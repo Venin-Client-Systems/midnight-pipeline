@@ -212,6 +212,13 @@ class QualityRecoveryTests(unittest.TestCase):
         self.assertEqual(state['review_findings']['T1']['review']['issues'],rejected['issues'])
         self.assertFalse(any(c.args[0] in ('apply','commit') for c in calls.call_args_list))
 
+    def test_profile_growth_can_be_switched_off_for_a_project(self):
+        task={'id':'T1','kind':'feature'};config={'quality_profile':{'id':'p'}}
+        self.assertTrue(self.s.profile_growth_wanted(task,{},config))
+        self.assertFalse(self.s.profile_growth_wanted(dict(task,kind='repair'),{},config))
+        with mock.patch.dict(self.s.SETTINGS,{'grow_quality_profile':False}):
+            self.assertFalse(self.s.profile_growth_wanted(task,{},config))
+
     def test_routine_cloud_audit_is_never_due_for_a_project_with_no_cloud_budget(self):
         self.q.record_review('run','c'*40,'b'*64,{'model':'fixture'},REVIEW,CHECKS);self.q.accepted('run','a'*40)
         self.assertTrue(self.q.due('a'*40))
