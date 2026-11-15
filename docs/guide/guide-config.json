@@ -1,0 +1,29 @@
+{
+  "source": "midnight-install-guide.md",
+  "output": "Midnight-Install-Guide-and-FAQ.pdf",
+  "title": "Midnight\nInstall guide and FAQ",
+  "short_title": "Midnight / Install guide and FAQ",
+  "subtitle": "Your Mac writes code while you sleep",
+  "status": "Version 0.1 - open source",
+  "date": "15 November 2026",
+  "edition": "Prepared by VENIN",
+  "author": "VENIN",
+  "footer": "Midnight | Install guide and FAQ | github.com/Venin-Client-Systems/midnight-pipeline",
+  "start_heading": "What Midnight is",
+  "reading_note": "New to this? Read the first three chapters in order: what it is, install, and the demo. The questions and answers cover what people ask first.",
+  "figure_pages": false,
+  "compact_figure_captions": true,
+  "figure_caption": "Recorded on a 16 GB MacBook Air (M1), 15 November 2026. Terminal text is shown as an image; the home folder name is replaced with \"you\".",
+  "table_widths": {"2": [1, 2.2]},
+  "table_padding": 4,
+  "figures": {
+    "missing": {"title": "The installer lists what is missing", "path": "images/01-missing.png", "credit": "Output of the install command on a Mac without Ollama or a model."},
+    "install": {"title": "A complete install", "path": "images/02-install.png", "credit": "Output of the install command once the listed tools were in place."},
+    "try": {"title": "Starting the demo", "path": "images/03-try.png", "credit": "Output of midnight try."},
+    "result": {"title": "The demo project's history afterwards", "path": "images/04-result.png", "credit": "The top line is the commit Midnight wrote."},
+    "commit": {"title": "The commit Midnight wrote", "path": "images/05-commit.png", "credit": "Author, model and review are recorded in the commit."},
+    "dashboard": {"title": "The dashboard after the demo", "path": "images/dashboard-top.png", "credit": "Browser capture of the local dashboard."}
+  },
+  "diagrams": {},
+  "require_resolved_captures": true
+}

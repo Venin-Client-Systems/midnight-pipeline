@@ -84,6 +84,8 @@ Retry admission is described in [PROGRESS_RECOVERY.md](PROGRESS_RECOVERY.md). Ru
 
 ## Quick start
 
+New to the terminal? The illustrated [install guide and FAQ (PDF)](docs/guide/Midnight-Install-Guide-and-FAQ.pdf) walks through every step.
+
 You need an Apple Silicon Mac. Open Terminal and paste the install command. On a new Mac it first lists what is missing (Apple's developer tools, Homebrew, Python, Ollama, a coding model sized to your memory) with the exact command for each; do those, then run it again.
 
 **1. Install**
