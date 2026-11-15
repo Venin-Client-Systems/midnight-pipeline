@@ -6,6 +6,7 @@ qualifier has three small file/test tools, not the production Codex shell loop.
 import datetime as dt
 import ast
 import http.client
+import verification_sandbox as VS
 import json
 import os
 from pathlib import Path
@@ -100,7 +101,7 @@ def profile(directory,repo,runner):
     path=directory/(runner.stem+'.sb')
     path.write_text('(version 1)\n(allow default)\n(deny network*)\n(deny process-fork)\n(deny signal)\n(deny file-write*)\n'
         +'(deny file-read* (subpath '+json.dumps(str(Path.home()))+'))\n'
-        +'(allow file-read* (subpath '+json.dumps(str(repo))+') (literal '+json.dumps(str(runner))+'))\n')
+        +'(allow file-read* (subpath '+json.dumps(str(repo))+') (literal '+json.dumps(str(runner))+'))\n'+'\n'.join(VS.ISOLATION)+'\n')
     return path
 
 

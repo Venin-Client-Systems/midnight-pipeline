@@ -1,5 +1,5 @@
 """Scheduled workers see the task's focused unit test; damaged quotes and cold model metadata recover."""
-import contextlib,io,json,tempfile,time,unittest
+import contextlib,io,json,subprocess,tempfile,time,unittest
 from pathlib import Path
 from unittest import mock
 import model_manager as M
@@ -75,7 +75,7 @@ class FocusedFeedbackWorkerTests(unittest.TestCase):
     def test_failing_focused_test_is_reported_and_finish_is_refused_once_then_left_to_the_host(self):
         self.action('write_file','value.py','value=1\n');result=self.action('run_tests')
         self.assertEqual(result['code'],0);self.assertEqual(result['focused_test']['code'],1);self.assertIn('base_url',result['focused_test']['output'])
-        self.assertEqual(self.loopback,[None,True])
+        self.assertEqual(self.loopback,[None,False])
         path=self.directory/'worker-manifest.json';path.write_text(json.dumps(dict(json.loads(path.read_text()),loopback=True)))
         self.assertNotIn('loopback',S.load_manifest(path,self.work))
         self.assertEqual(self.commands,[self.manifest['test_command'],self.FOCUSED])
@@ -173,6 +173,16 @@ class T(unittest.TestCase):
 """)
         result=self.run_check('reads')
         self.assertEqual((result['code'],result['reason']),(0,'exited'),result['output'])
+
+    def test_sandboxed_tests_cannot_start_an_application_by_replacing_themselves(self):
+        (self.work/'tests/test_unit_loop.py').write_text("""import os
+os.execv('/usr/bin/open',['open','-g','-a','Calculator'])
+""")
+        result=self.run_check('exec')
+        self.addCleanup(subprocess.run,['/usr/bin/pkill','-x','Calculator'],capture_output=True)
+        time.sleep(1)
+        self.assertNotEqual(result['code'],0,result['output'])
+        self.assertEqual(subprocess.run(['/usr/bin/pkill','-x','Calculator'],capture_output=True).returncode,1)
 
     def test_without_loopback_the_focused_run_cannot_open_a_local_connection(self):
         denied=self.run_check('off',loopback=False)

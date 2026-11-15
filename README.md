@@ -33,7 +33,7 @@ A night, illustrated:
 - The model never gets a shell. It chooses one small typed action at a time: `read_file`, `edit_file`, `run_tests`, `finish`.
 - Edits are exact text replacements after a fresh read; stale or ambiguous matches are rejected.
 - Writes are limited to the files the task names. Tests you mark as protected can't be weakened.
-- Test runs happen in a macOS sandbox: no forks, no writes outside a scratch directory, no network (a project can allow local-only connections if its tests need them). See [SECURITY.md](SECURITY.md).
+- Test runs happen in a macOS sandbox: no forks, no writes outside a scratch directory, no network unless the project asks for local-only connections. See [SECURITY.md](SECURITY.md).
 
 **Verification the model can't talk its way past**
 - The host reruns the task's own tests and your project's full checks after every attempt.

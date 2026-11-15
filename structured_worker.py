@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
 import durability as D
+import verification_sandbox as VS
 import local_supervisor as L
 import model_bench as B
 import model_manager as M
@@ -288,7 +289,7 @@ def test_profile(work,directory,manifest,log):
  profile='\n'.join(['(version 1)','(allow default)','(deny network*)','(deny process-fork)','(deny signal)','(deny file-write*)',
   '(deny file-read* (subpath '+quote(str(Path.home()))+') (subpath "/Users") (subpath "/Volumes") (subpath "/Library/Keychains"))',
   '(allow file-read* (subpath '+quote(str(work))+') (subpath '+quote(str(temporary))+'))',
-  '(allow file-write* (subpath '+quote(str(temporary))+') (literal "/dev/null"))'])
+  '(allow file-write* (subpath '+quote(str(temporary))+') (literal "/dev/null"))',*VS.ISOLATION])
  if manifest.get('loopback') is True:
   # The focused unit test may start a local server; these are the same localhost rules as project_backend.host_checks.
   profile+='\n(allow network-bind (local ip "localhost:*"))\n(allow network-inbound (local ip "localhost:*"))\n(allow network-outbound (remote ip "localhost:*"))'
@@ -376,7 +377,7 @@ class Worker:
    emit('item.completed',item={'type':'command_execution','command':' '.join(self.manifest['test_command']),'exit_code':result['code'],'status':'completed','aggregated_output':result['output']})
    if self.manifest.get('focused_command') and result['code']==0 and result['reason']=='exited':
     # Advisory feedback only: the handoff receipt stays bound to the fixed check above.
-    focused=run_tests(self.work,self.directory/('focused-'+str(self.sequence)),dict(self.manifest,test_command=self.manifest['focused_command'],loopback=self.manifest.get('test_loopback',True) is not False),deadline)
+    focused=run_tests(self.work,self.directory/('focused-'+str(self.sequence)),dict(self.manifest,test_command=self.manifest['focused_command'],loopback=self.manifest.get('test_loopback') is True),deadline)
     self.focused_failed=focused['code']!=0 or focused['reason']!='exited'
     emit('item.completed',item={'type':'command_execution','command':' '.join(self.manifest['focused_command']),'exit_code':focused['code'],'status':'completed','aggregated_output':focused['output']})
     return dict(result,focused_test={k:focused[k] for k in ('code','reason','command','output')})

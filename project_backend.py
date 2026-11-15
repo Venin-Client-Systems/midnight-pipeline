@@ -42,6 +42,7 @@ RETRY_ANCHORS = SETTINGS.get("retry_anchors", ["docs", "exampleapp/__init__.py"]
 WORKER_CHECK = SETTINGS.get("worker_check", "python3 -m unittest discover -s tests -p 'test_unit*.py'")
 sys.path.insert(0, str(MIDNIGHT_ROOT))
 import durability as D
+import verification_sandbox as VS
 import colibri_provider as GP
 import memory_runtime as MRT
 import worker_quality as Q
@@ -245,7 +246,7 @@ def typed_worker_manifest(task,work,directory,config,micro,env):
     manifest={'version':1,'workspace':str(work.resolve()),'task_id':task['id'],'allowed_files':task.get('local_worker_files',task['files']),
         'test_command':[executable,*command[1:]],'check_kind':'syntax' if managed else 'standalone_compatibility','timeout_seconds':config['worker_timeout_seconds'],
         'read_roots':SETTINGS.get('validation_read_roots',[]),'scratch_roots':SETTINGS.get('validation_scratch_roots',[]),'toolchain_path':env['PATH'],
-        'test_loopback':SETTINGS.get('test_loopback',True) is not False}
+        'test_loopback':SETTINGS.get('test_loopback') is True}
     feedback=worker_feedback_check(task) if managed and not micro else None
     if feedback and shutil.which(feedback[0],path=env['PATH']):manifest['focused_command']=[shutil.which(feedback[0],path=env['PATH']),*feedback[1:]]
     if GP.matches(config.get('worker_model')):manifest['model_profile_sha256']=config['worker_model']['parameters_sha256']
@@ -1051,11 +1052,13 @@ def host_checks(work, directory, cutoff, state, checks, *, timeouts=None, stop_o
         f"(allow file-write* (subpath {quote(str(work))}) (subpath {quote(str(temporary))}) (literal \"/dev/null\"))",
         f"(deny file-read* (subpath {quote(str(Path.home()))}) (subpath \"/Users\") (subpath \"/Volumes\") (subpath \"/Library/Keychains\"))",
         f"(allow file-read* (subpath {quote(str(work))}) (subpath {quote(str(temporary))}) (subpath {quote(str(ROOT / ACCEPTANCE_DIR))}))",
-        "(deny network*)",
+        "(deny network*)", *VS.ISOLATION, *VS.SIGNALS,
+        # Host-side Git later reads this folder, so nothing run here may change it.
+        f"(deny file-write* (subpath {quote(str(Path(work) / '.git'))}))",
     ])
     # Loopback lets tests start a local server, and also lets test code reach every other
-    # service listening on this Mac. A project can switch it off with test_loopback false.
-    if SETTINGS.get("test_loopback", True) is not False:
+    # service listening on this Mac, so a project has to ask for it with test_loopback true.
+    if SETTINGS.get("test_loopback") is True:
         profile += ('\n(allow network-bind (local ip "localhost:*"))\n(allow network-inbound (local ip "localhost:*"))'
                     '\n(allow network-outbound (remote ip "localhost:*"))')
     for allowed in SETTINGS.get("validation_read_roots", []):
@@ -2415,9 +2418,9 @@ def attempt(task, state, config, cutoff):
         "Preserve seed acceptance tests. Change other tests only if explicitly listed in this task; never reduce coverage.",
         "Worker-safe check: " + safe_check,
         "Managed local run_tests performs syntax checks without executing candidate code. The independent host runs every original semantic test before AI review or acceptance.",
-        *(["After a passing syntax check, run_tests also reports this focused unit test from a sandbox with loopback-only network and no process spawning: "+shlex.join(worker_feedback_check(task))+". Repair every failure it reports before finish."] if managed and not micro and worker_feedback_check(task) else []),
+        *(["After a passing syntax check, run_tests also reports this focused unit test from a sandbox with "+("loopback-only network" if SETTINGS.get("test_loopback") is True else "no network")+" and no process spawning: "+shlex.join(worker_feedback_check(task))+". Repair every failure it reports before finish."] if managed and not micro and worker_feedback_check(task) else []),
         "Independent focused host check: " + (shlex.join(micro_checks(micro)[0]) if micro else worker_check_for(task)),
-        SETTINGS.get("host_instruction", "The host runs full loopback integration tests and an independent review after you finish."),
+        SETTINGS.get("host_instruction", "The host runs the full test suite"+(" with loopback-only network" if SETTINGS.get("test_loopback") is True else " with no network")+" and an independent review after you finish."),
         "Do not change orchestration, AGENTS.md, dependencies, scheduling, Git remotes or installed services.",
         "Do not install packages or access internet targets. Work only on this task. Finish with a factual summary.",
         "Do not claim complete when tests fail. If a command cannot run in the sandbox, report that exactly.",

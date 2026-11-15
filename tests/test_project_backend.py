@@ -117,10 +117,12 @@ class ProjectBackendTests(unittest.TestCase):
         with mock.patch.object(s,'run',side_effect=result):
             s.host_checks(s.ROOT,folder,None,{},[['python3','-c','1']])
             profile=(folder/'validation.sb').read_text()
-            self.assertIn('(subpath "/Users") (subpath "/Volumes")',profile);self.assertIn('localhost:*',profile)
-            with mock.patch.dict(s.SETTINGS,{'test_loopback':False}):
+            self.assertIn('(subpath "/Users") (subpath "/Volumes")',profile);self.assertNotIn('localhost',profile)
+            self.assertIn('(deny mach-lookup)',profile);self.assertIn('(deny signal)',profile)
+            self.assertIn('(deny file-write* (subpath "'+str(s.ROOT/'.git')+'"))',profile)
+            with mock.patch.dict(s.SETTINGS,{'test_loopback':True}):
                 s.host_checks(s.ROOT,folder,None,{},[['python3','-c','1']])
-        self.assertNotIn('localhost',(folder/'validation.sb').read_text())
+        self.assertIn('localhost:*',(folder/'validation.sb').read_text())
 
     def test_review_check_output_is_real_and_bounded(self):
         folder=self.root/'receipts';folder.mkdir()
