@@ -21,15 +21,20 @@ class ControlStatusTests(unittest.TestCase):
         self.assertEqual(result['next_retry_at'],'2026-11-01T01:00:00+00:00')
 
     def test_a_finished_backlog_is_waiting_with_a_next_step_not_a_fault(self):
-        state={'planning_wait':{'until':'2026-11-01T01:00:00+00:00','reason':'No material defects or actionable debt.'}}
+        state={'planning_wait':{'until':'2026-11-01T01:00:00+00:00','reason':'No material defects or actionable debt.','finished':True}}
         result=project_control({'phase':'no_useful_work'},state,instant=self.now)
         self.assertEqual((result['state'],result['code']),('waiting','backlog_finished'))
         self.assertIn('midnight add-task',result['explanation'])
         self.assertEqual(project_control({'phase':'quality_wait'},state,instant=self.now)['code'],'planner_hold')
         from control_status import backlog_finished
-        self.assertTrue(backlog_finished('no_useful_work','Nothing material remains.'))
-        self.assertFalse(backlog_finished('no_useful_work','No available tool can read the failure log.'))
-        self.assertFalse(backlog_finished('manager_hold',''))
+        wait=state['planning_wait']
+        self.assertTrue(backlog_finished('no_useful_work',wait,self.now))
+        self.assertFalse(backlog_finished('no_useful_work',dict(wait,reason='No available tool can read the failure log.'),self.now))
+        self.assertFalse(backlog_finished('no_useful_work',dict(wait,finished=False,reason='Planner proposed changes to immutable protected tests: tests/test_a.py'),self.now))
+        self.assertFalse(backlog_finished('no_useful_work',wait,self.now+dt.timedelta(hours=2)))
+        self.assertFalse(backlog_finished('no_useful_work',None,self.now));self.assertFalse(backlog_finished('manager_hold',wait,self.now))
+        refused=project_control({'phase':'no_useful_work'},{'planning_wait':dict(wait,finished=False)},instant=self.now)
+        self.assertEqual(refused['code'],'planner_hold')
 
     def test_verified_active_process_has_precedence_over_old_wait(self):
         result=project_control({'phase':'running'},{'planning_wait':{'until':'2026-11-01T01:00:00+00:00'}},

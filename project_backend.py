@@ -384,8 +384,7 @@ def record_hold_transition(view):
         previous = {}
     detail = str(view.get('detail', ''))[:600]
     from control_status import backlog_finished
-    planning = view.get('planning') if isinstance(view.get('planning'), dict) else {}
-    if view['phase'] in HOLD_PHASES and not backlog_finished(view['phase'], planning.get('reason') or detail):
+    if view['phase'] in HOLD_PHASES and not backlog_finished(view['phase'], view.get('planning')):
         signature = AW.fingerprint({'phase': view['phase'], 'detail': detail})
         if previous.get('signature') == signature:
             return previous
@@ -3210,7 +3209,9 @@ def plan_task(state, config, cutoff, *, findings=None):
     if planned.get("action") == "no_change" or forbidden:
         reason = ('Planner proposed changes to immutable protected tests: ' + ', '.join(forbidden)) if forbidden else planned['description']
         state["planning_wait"] = {"head": head, "until": (now() + dt.timedelta(hours=1)).isoformat(),
-                                  "finding_ids": [f["id"] for f in observed], "reason": reason[:1000]}
+                                  "finding_ids": [f["id"] for f in observed], "reason": reason[:1000],
+                                  # Only an honest "nothing to change" with no open finding is a finished backlog.
+                                  "finished": not forbidden and not observed}
         # Commit the effective backoff before its optional diagnostic receipt.
         # A crash while publishing that receipt must not admit another plan.
         write(STATE / "state.json", state)

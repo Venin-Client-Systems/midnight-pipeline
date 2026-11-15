@@ -74,9 +74,8 @@ def stale_holds(value,meta,instant):
         meta['held_projects']={};return []
     now=instant.timestamp();held=meta.setdefault('held_projects',{});seen=set()
     from control_status import backlog_finished
-    def reason(status):return (status.get('planning') or {}).get('reason') if isinstance(status.get('planning'),dict) else status.get('detail','')
     subjects=[(p['id'],p.get('status',{}).get('phase',''),str(p.get('status',{}).get('detail',''))) for p in value['projects']
-              if not p['paused'] and not backlog_finished(p.get('status',{}).get('phase',''),reason(p.get('status',{})))]
+              if not p['paused'] and not backlog_finished(p.get('status',{}).get('phase',''),p.get('status',{}).get('planning'),instant)]
     controller=value.get('controller') or {}
     subjects.append(('midnight',controller.get('phase',''),str(controller.get('detail',''))))
     for ident,phase,detail in subjects:

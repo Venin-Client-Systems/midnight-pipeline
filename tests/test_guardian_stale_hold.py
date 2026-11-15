@@ -46,6 +46,18 @@ class StaleHoldTests(unittest.TestCase):
         self.restart.assert_not_called(); self.spawn.assert_not_called()
         self.assertEqual(Actions(self.runtime).incidents(), [])
 
+    def test_a_finished_backlog_never_notifies_but_a_refused_plan_does(self):
+        self.setUpMocks(); notify = mock.Mock(return_value=True)
+        self.save(self.runtime / 'override.json', {'expires_at': (self.instant + dt.timedelta(hours=12)).isoformat()})
+        wait = {'until': (self.instant + dt.timedelta(hours=3)).isoformat(), 'reason': 'Nothing material remains.', 'finished': True}
+        self.save(self.project / 'status.json', {'phase': 'no_useful_work', 'planning': wait})
+        self.audit(0, notify); result = self.audit(61, notify)
+        notify.assert_not_called(); self.assertEqual(result['stale_holds'], [])
+        refused = dict(wait, finished=False, reason='Planner proposed changes to immutable protected tests: tests/test_a.py')
+        self.save(self.project / 'status.json', {'phase': 'no_useful_work', 'planning': refused})
+        self.audit(62, notify); result = self.audit(130, notify)
+        notify.assert_called_once(); self.assertIn('notes', result['stale_holds'])
+
     def test_renotifies_only_after_the_renotify_interval(self):
         self.setUpMocks(); self.hold(); notify = mock.Mock(return_value=True)
         self.audit(0, notify); self.audit(61, notify); self.audit(61 + 300, notify)

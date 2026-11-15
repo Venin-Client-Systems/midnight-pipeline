@@ -7,9 +7,22 @@ from profile_manager import missing_evidence
 MISSING_EVIDENCE=('cannot read', 'no available tool', 'failure evidence', 'failure log')
 
 
-def backlog_finished(phase, reason):
-    """A finished backlog (nothing planned, and not for want of evidence) is idle, not held."""
-    return phase=='no_useful_work' and not any(x in str(reason or '').lower() for x in MISSING_EVIDENCE)
+def backlog_finished(phase, planning, instant=None):
+    """A finished backlog is idle, not held.
+
+    Only the planner's own "nothing to change" outcome counts (it marks its wait
+    finished), and only while that wait is still in force. A refused proposal, missing
+    evidence or an expired wait is a hold like any other.
+    """
+    if phase != 'no_useful_work' or not isinstance(planning, dict) or planning.get('finished') is not True:
+        return False
+    if any(x in str(planning.get('reason') or '').lower() for x in MISSING_EVIDENCE):
+        return False
+    try:
+        until = dt.datetime.fromisoformat(planning.get('until'))
+    except (TypeError, ValueError):
+        return False
+    return bool(until.tzinfo and until > (instant or dt.datetime.now(dt.timezone.utc)))
 
 
 def project_control(status, state, *, instant=None, process_running=False, supervisor_running=False, activity=None, paused=False,owned_phase=None):
@@ -87,7 +100,7 @@ def project_control(status, state, *, instant=None, process_running=False, super
     if retry and status.get('phase') in {'quality_wait','no_useful_work'} and (not current_head or not waiting.get('head') or waiting['head']==current_head):
         reason = waiting.get('reason', 'No supported next change was planned.')
         missing = any(x in reason.lower() for x in MISSING_EVIDENCE)
-        if backlog_finished(status.get('phase'), reason):
+        if backlog_finished(status.get('phase'), waiting, instant):
             # A finished backlog is not a fault: say so, and say what to do next.
             result.update(state='waiting',stage='Nothing left to do',code='backlog_finished',next_retry_at=waiting['until'],
                           recovery_owner='automatic',explanation='Every task is finished and no further change was planned. '

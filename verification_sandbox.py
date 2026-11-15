@@ -47,8 +47,8 @@ def confined(work,directory,command,log,*,network_ports=(),receipt=None):
         lines += [f'(allow network-bind (local ip "localhost:{port}"))',
             f'(allow network-inbound (local ip "localhost:{port}"))',
             f'(allow network-outbound (remote ip "localhost:{port}"))']
-    for ancestor in sorted({work,directory,temporary}|set(work.parents)|set(directory.parents)):
-        lines.append(f'(allow file-read-metadata (literal {quote(str(ancestor))}))')
+    lines += traversal([work,directory,temporary])
+    lines += [f'(allow file-read-metadata (literal {quote(str(root))}))' for root in sorted({work,directory,temporary})]
     D.atomic_write(profile,('\n'.join(lines)+'\n').encode())
     env={'PATH':'/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin','LANG':'en_AU.UTF-8','PYTHONDONTWRITEBYTECODE':'1',
         'HOME':str(temporary),'TMPDIR':str(temporary),'PYTHONPATH':str(work),'GIT_CONFIG_GLOBAL':'/dev/null','GIT_CONFIG_SYSTEM':'/dev/null',
