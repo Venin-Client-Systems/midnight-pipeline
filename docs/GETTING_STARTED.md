@@ -69,15 +69,15 @@ This creates `~/Developer/midnight-demo` (a ten-line Python package with one tes
 
 What you will see, in order:
 
-| Stage | What Midnight is doing | Rough time on 32 GB |
-| --- | --- | --- |
-| Assessment | Runs the project's tests and has the model review the code once, as a baseline | 5–10 min |
-| Attempt | The model reads files, edits, runs the tests and fixes failures, one small action at a time | 5–15 min |
-| Host checks | Your Mac reruns the tests itself, in a sandbox | under 1 min |
-| Review | A separate pass reads the change and accepts it or sends it back with reasons | 3–10 min |
-| Delivery | The accepted change is committed to the demo repository | seconds |
+| Stage | What Midnight is doing |
+| --- | --- |
+| Assessment | Runs the project's tests and has the model review the code once, as a baseline |
+| Attempt | The model reads files, edits, runs the tests and fixes failures, one small action at a time |
+| Host checks | Your Mac reruns the tests itself, in a sandbox |
+| Review | A separate pass reads the change and accepts it or sends it back with reasons |
+| Delivery | The accepted change is committed to the demo repository |
 
-These times assume nothing else is using the model. Watch with `midnight status`, or open the dashboard. When it finishes:
+On a 32 GB Mac with a 27B model and nothing else using it, the whole demo took about three minutes: under a minute for the assessment and under two for the rest. If another program is using the model, or it does not fit in free memory, expect far longer. Watch with `midnight status`, or open the dashboard. When it finishes:
 
 ```sh
 git -C ~/Developer/midnight-demo log --oneline     # the new commit

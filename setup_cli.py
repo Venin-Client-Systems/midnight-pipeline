@@ -554,8 +554,8 @@ def try_demo(args):
     say(('\nMidnight is running now, for up to 90 minutes (the demo and any other connected project).\n' if started else
          '\nThe demo task is ready, but the Midnight service is not loaded. Start it in another terminal with:  midnight tick\n')
         + '  What happens: a first review of the project, then the local model writes the change, the host reruns the tests, a\n'
-        '  second pass reviews it, and an accepted change is committed. Allow 20 to 45 minutes on a 32 GB Mac with nothing else\n'
-        '  using the model.\n\n'
+        '  second pass reviews it, and an accepted change is committed. About three minutes on a 32 GB Mac when nothing else is\n'
+        '  using the model; much longer if the model is shared or does not fit in memory.\n\n'
         '  Watch:    midnight status          or open the dashboard\n'
         f'  Result:   git -C {repository} log --oneline\n'
         '  Evidence: midnight report')
