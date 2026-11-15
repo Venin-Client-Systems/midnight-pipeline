@@ -105,7 +105,7 @@ def archive_clone(project,run_id,*,instant=None):
         target=Path(temporary)
         with tarfile.open(baseline) as tar:tar.extractall(target,filter='data')
         def run(*args):return subprocess.check_output(['git',*args],cwd=target,stderr=subprocess.PIPE).strip()
-        run('init','--quiet');run('add','-A');run('-c','user.name=Codex','-c','user.email=codex@localhost','commit','--quiet','-m','Retained reconstruction base')
+        run('init','--quiet');run('add','-A');run('-c','user.name=Midnight','-c','user.email=midnight@localhost','commit','--quiet','-m','Retained reconstruction base')
         run('apply','--index',str(patch));tree=run('write-tree').decode()
         expected=subprocess.check_output(['git','write-tree'],cwd=work,text=True).strip()
         # Verify against the exact recorded patch independent of any dirty work clone.

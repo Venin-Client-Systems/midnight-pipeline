@@ -2293,8 +2293,8 @@ def attempt(task, state, config, cutoff):
     clone_workspace(work,directory,cutoff,state)
     git("remote", "remove", "origin", cwd=work)
     prepare_workspace(work)
-    git("config", "user.name", "Codex", cwd=work)
-    git("config", "user.email", "codex@localhost", cwd=work)
+    git("config", "user.name", "Midnight", cwd=work)
+    git("config", "user.email", "midnight@localhost", cwd=work)
     write(directory / "task.json", task)
     continuation = seed_retry(task, state, config, work, base, directory)
     if task.get('local_worker_files'):
@@ -2970,7 +2970,7 @@ def review_and_promote(task, state, config, cutoff, directory, work, run_id, bas
     write(STATE / "promotion-intent.json", intent)
     git("apply", "--check", str(directory / "candidate.patch"))
     git("apply", "--index", str(directory / "candidate.patch"))
-    git("-c", "user.name=Codex", "-c", "user.email=codex@localhost", "commit", "-m",
+    git("-c", "user.name=Midnight", "-c", "user.email=midnight@localhost", "commit", "-m",
         f"{task['id']}: {task['title']}\n\n{RUN_TRAILER}: {run_id}\nWorker: {worker_name}\nReview: "+('independent local model' if local_review else 'cloud Codex'))
     commit = git("rev-parse", "HEAD")
     accept_candidate(task, state, config, directory, run_id, commit)
@@ -3042,7 +3042,7 @@ def resume_promotion(intent, *, allow_promotion=False):
     worker_name=read(directory/'worker-model.json',{}).get('model','local-coder:context32')
     principal_delivery_gate()
     reviewer='independent local model' if (directory/'review/local-decision-receipt.json').is_file() else 'cloud Codex'
-    git("-c", "user.name=Codex", "-c", "user.email=codex@localhost", "commit", "-m",
+    git("-c", "user.name=Midnight", "-c", "user.email=midnight@localhost", "commit", "-m",
         f"{task['id']}: {task['title']}\n\n{RUN_TRAILER}: {identity}\nWorker: {worker_name}\nReview: {reviewer}")
     return git("rev-parse", "HEAD")
 
@@ -3247,6 +3247,12 @@ def reconcile_saved_audits():
         result=LS.validate(read(directory/'result.json'),QM.AUDIT_SCHEMA)
         monitor.finish(audit['id'],result,audit_evidence(directory,binding['head'],audit['source'],audit['kind']),
             approved_patch=audit['source'] if audit['kind']=='corrective' and result['decision']=='healthy' else None)
+
+
+def routine_audit_due(config,status,binding,head):
+    """The sampled audit is a cloud call, so a project with no cloud budget never starts one."""
+    return bool(not binding and config.get('routine_provider')=='local' and config.get('max_cloud_calls_per_night')!=0
+        and not status.get('material_findings') and QM.QualityMonitor(STATE,PROJECT_ID).due(head))
 
 
 def run_quality_audit(state,config,cutoff,head,*,candidate=None):
@@ -3476,7 +3482,7 @@ def next_task(state, config, cutoff):
             'description':'\n'.join(audit_hold['issues']),'category':'defect','material':True,'shipped':True,
             'evidence':{'head':audit_hold['source'],'audit':audit_hold['audit']}})
         return None
-    if not binding and config.get('routine_provider')=='local' and not status.get('material_findings') and QM.QualityMonitor(STATE,PROJECT_ID).due(head):
+    if routine_audit_due(config,status,binding,head):
         run_quality_audit(state,config,cutoff,head)
         return None
     retired = coordinator_retired()

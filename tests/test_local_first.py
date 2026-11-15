@@ -212,6 +212,13 @@ class QualityRecoveryTests(unittest.TestCase):
         self.assertEqual(state['review_findings']['T1']['review']['issues'],rejected['issues'])
         self.assertFalse(any(c.args[0] in ('apply','commit') for c in calls.call_args_list))
 
+    def test_routine_cloud_audit_is_never_due_for_a_project_with_no_cloud_budget(self):
+        self.q.record_review('run','c'*40,'b'*64,{'model':'fixture'},REVIEW,CHECKS);self.q.accepted('run','a'*40)
+        self.assertTrue(self.q.due('a'*40))
+        base={'routine_provider':'local'}
+        self.assertTrue(self.s.routine_audit_due(dict(base,max_cloud_calls_per_night=2),{},None,'a'*40))
+        self.assertFalse(self.s.routine_audit_due(dict(base,max_cloud_calls_per_night=0),{},None,'a'*40))
+
 
 class LocalSupervisorTests(unittest.TestCase):
     def response(self,**changes):

@@ -998,7 +998,7 @@ def prepare_workspace(root,job,directory,payload,deadline,R):
             host(['apply','--index',patch],work)
     if not matches():raise RP.RecoveryHeld('Workspace does not match its complete retained seed')
     if 'origin' in R.G.git(work,'remote').splitlines():host(['remote','remove','origin'],work)
-    host(['config','user.name','Codex'],work);host(['config','user.email','codex@localhost'],work)
+    host(['config','user.name','Midnight'],work);host(['config','user.email','midnight@localhost'],work)
     save(directory/'workspace-ready.json',ready_value())
     return canonical,work
 

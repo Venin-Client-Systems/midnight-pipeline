@@ -128,7 +128,7 @@ class GitDelivery:
                     message=(task['id']+': '+task['title']+'\n\nMidnight-Run: '+run_id+'\n'+
                              self.project_id.capitalize()+'-Run: '+run_id+'\nWorker: '+worker.get('model','recorded in private receipt')+
                              '\nWorker-Kind: '+worker.get('kind','local')+'\nReview: '+reviewer)
-                    git(delivery,'-c','user.name=Codex','-c','user.email=codex@localhost','commit','-m',message)
+                    git(delivery,'-c','user.name=Midnight','-c','user.email=midnight@localhost','commit','-m',message)
                 expected=git(delivery,'diff','--binary',base,'HEAD')
                 expected_path=directory/'delivery-observed.patch'
                 D.atomic_write(expected_path,(expected+'\n').encode())

@@ -446,7 +446,7 @@ def execute(root,identity):
         canonical=directory/'canonical';work=directory/'work'
         subprocess.run(['git','clone','--quiet','--no-hardlinks',str(root),str(canonical)],check=True,capture_output=True)
         subprocess.run(['git','clone','--quiet','--no-hardlinks',str(canonical),str(work)],check=True,capture_output=True)
-        G.git(work,'remote','remove','origin');G.git(work,'config','user.name','Codex');G.git(work,'config','user.email','codex@localhost')
+        G.git(work,'remote','remove','origin');G.git(work,'config','user.name','Midnight');G.git(work,'config','user.email','midnight@localhost')
         manager=CP.CloudPolicy(runtime);descriptor=manager.descriptor()
         # Demonstrate the unchanged base suite before asking for a patch.
         baseline=run_checks(root,job,work,directory/'baseline',deadline,baseline=True)
