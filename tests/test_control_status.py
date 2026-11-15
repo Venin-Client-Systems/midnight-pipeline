@@ -20,6 +20,13 @@ class ControlStatusTests(unittest.TestCase):
         self.assertEqual(result['code'],'missing_failure_evidence')
         self.assertEqual(result['next_retry_at'],'2026-11-01T01:00:00+00:00')
 
+    def test_a_finished_backlog_is_waiting_with_a_next_step_not_a_fault(self):
+        state={'planning_wait':{'until':'2026-11-01T01:00:00+00:00','reason':'No material defects or actionable debt.'}}
+        result=project_control({'phase':'no_useful_work'},state,instant=self.now)
+        self.assertEqual((result['state'],result['code']),('waiting','backlog_finished'))
+        self.assertIn('midnight add-task',result['explanation'])
+        self.assertEqual(project_control({'phase':'quality_wait'},state,instant=self.now)['code'],'planner_hold')
+
     def test_verified_active_process_has_precedence_over_old_wait(self):
         result=project_control({'phase':'running'},{'planning_wait':{'until':'2026-11-01T01:00:00+00:00'}},
                                instant=self.now,process_running=True,activity='local_worker')
