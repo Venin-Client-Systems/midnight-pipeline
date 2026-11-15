@@ -18,6 +18,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 import urllib.request
 from zoneinfo import ZoneInfo
 
@@ -27,6 +28,7 @@ PROFILES = ROOT / 'quality_profiles'
 RECEIPT = ROOT / 'runtime' / 'setup.json'
 PYTHON = '/opt/homebrew/bin/python3'
 BREW = '/opt/homebrew/bin/brew'
+SERVICE_STOP_SECONDS = 30
 OLLAMA = 'http://127.0.0.1:11434'
 LABELS = {'controller': 'space.venin.midnight', 'dashboard': 'space.venin.midnight-dashboard'}
 MARKER = '# Midnight launcher'
@@ -219,7 +221,13 @@ def remove_services():
         path = agents_directory() / (label + '.plist')
         if not path.exists() or Path(service_owner(path) or ROOT) != ROOT:
             continue
-        launchctl(['/bin/launchctl', 'bootout', f'gui/{os.getuid()}/{label}'])
+        target = f'gui/{os.getuid()}/{label}'
+        launchctl(['/bin/launchctl', 'bootout', target])
+        # bootout returns before the process has exited; a controller that is still
+        # shutting down would write its state back after the files are deleted.
+        deadline = time.monotonic() + SERVICE_STOP_SECONDS
+        while time.monotonic() < deadline and launchctl(['/bin/launchctl', 'print', target]).returncode == 0:
+            time.sleep(0.5)
         if path.exists():
             path.unlink()
             removed.append(str(path))

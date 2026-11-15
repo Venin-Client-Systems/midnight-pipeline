@@ -22,6 +22,7 @@ def arguments(**values):
 class Fixture(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        stop = mock.patch.object(S, 'SERVICE_STOP_SECONDS', 0); stop.start(); self.addCleanup(stop.stop)
         self.base = Path(self.temp.name).resolve()
         self.home = self.base / 'home'; self.home.mkdir()
         self.root = self.base / 'midnight'; (self.root / 'quality_profiles').mkdir(parents=True)
@@ -139,6 +140,18 @@ class SetupTests(Fixture):
             S.choose_model([], 16 * 2**30)
         with self.assertRaisesRegex(S.SetupError, 'ollama pull qwen2.5-coder:7b'):
             S.choose_model([], 8 * 2**30)
+
+    def test_uninstall_waits_for_each_service_to_exit_before_deleting_its_files(self):
+        self.run_setup()
+        answers = {'print': [0, 0, 113, 113]}
+        def launch(command, **kw):
+            code = answers['print'].pop(0) if command[1] == 'print' else 0
+            return subprocess.CompletedProcess(command, code, '', '')
+        with mock.patch.object(S, 'run', side_effect=launch) as calls, mock.patch.object(S.time, 'sleep'), \
+             mock.patch.object(S, 'SERVICE_STOP_SECONDS', 30):
+            S.uninstall(arguments(purge=True))
+        self.assertEqual([c.args[0][1] for c in calls.call_args_list], ['bootout', 'print', 'print', 'print', 'bootout', 'print'])
+        self.assertFalse((S.ROOT / 'runtime').exists())
 
     def test_uninstall_removes_only_what_setup_created(self):
         self.run_setup()
