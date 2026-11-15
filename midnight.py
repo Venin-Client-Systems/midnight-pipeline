@@ -725,7 +725,7 @@ def run_pinned_project(project, cutoff, session,worker_model):
     log.parent.mkdir(parents=True, exist_ok=True)
     brief = STATE / "instructions" / (identity + ".json")
     write(brief,project_brief(project,worker_model,session))
-    command = [PYTHON, str(Path(project["path"]) / project["controller"]),
+    command = [PYTHON, "-P", str(Path(project["path"]) / project["controller"]),
                "managed-once", "--until", cutoff.isoformat(), "--brief", str(brief)]
     if effective_limits(now()):
         command += ["--limits", str(STATE / "override.json")]
@@ -1018,7 +1018,7 @@ def recover_projects(data, identity=None):
             continue
         try:
             validate_backend(project)
-            proc = subprocess.run([PYTHON, str(Path(project["path"]) / project["controller"]), "recover"],
+            proc = subprocess.run([PYTHON, "-P", str(Path(project["path"]) / project["controller"]), "recover"],
                                   cwd=project["path"], capture_output=True, text=True, timeout=30,
                                   env=dict(os.environ,MIDNIGHT_SHARED_ROOT=str(ROOT)))
             results.append({"project": project["id"], "returncode": proc.returncode,
@@ -1031,7 +1031,7 @@ def recover_projects(data, identity=None):
 def validate_backend(project):
     if type(project.get('backend_protocol')) is not int or project['backend_protocol'] != Q.BACKEND_PROTOCOL:
         raise ValueError('Backend protocol declaration is required: '+project['id'])
-    proc = subprocess.run([PYTHON, str(Path(project['path'])/project['controller']), 'capabilities'],
+    proc = subprocess.run([PYTHON, '-P', str(Path(project['path'])/project['controller']), 'capabilities'],
                           cwd=project['path'], capture_output=True, text=True, timeout=10,
                           env=dict(os.environ,MIDNIGHT_SHARED_ROOT=str(ROOT)))
     try:
@@ -1203,7 +1203,7 @@ def main():
         print(json.dumps(manager.provider_snapshot(),indent=2));return 0
     if command=='reconcile-merge':
         project=selected(data,args.project)[0]
-        proc=subprocess.run([PYTHON,str(Path(project['path'])/project['controller']),'reconcile-merge','--task',args.task,'--commit',args.commit],
+        proc=subprocess.run([PYTHON,'-P',str(Path(project['path'])/project['controller']),'reconcile-merge','--task',args.task,'--commit',args.commit],
                             cwd=project['path'],capture_output=True,text=True,timeout=300,env=dict(os.environ,MIDNIGHT_SHARED_ROOT=str(ROOT)))
         sys.stdout.write(proc.stdout);sys.stderr.write(proc.stderr[-2000:])
         return proc.returncode

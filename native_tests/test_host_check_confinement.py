@@ -31,6 +31,7 @@ attempt('internet', lambda: socket.create_connection(('1.1.1.1', 443), timeout=3
 attempt('local_service', lambda: socket.create_connection(('127.0.0.1', PORT), timeout=3).close())
 attempt('write_workspace_file', lambda: open('scratch.txt', 'w').write('x'))
 attempt('run_child_process', lambda: run(['/bin/echo', 'child']))
+attempt('resolve_own_path', lambda: [os.lstat(parent) for parent in __import__('pathlib').Path(os.getcwd()).parents])
 print('RESULTS ' + json.dumps(results))
 '''
 
@@ -62,7 +63,7 @@ class HostCheckConfinementTests(unittest.TestCase):
         self.assertTrue(line, output['text'][-800:])
         results = json.loads(line[0][8:])
         allowed = {name for name, outcome in results.items() if outcome == 'allowed'}
-        self.assertEqual(allowed, {'write_workspace_file', 'run_child_process'}, results)
+        self.assertEqual(allowed, {'write_workspace_file', 'run_child_process', 'resolve_own_path'}, results)
         time.sleep(0.5)
         self.assertIsNone(victim.poll())
         self.assertFalse((root / 'outside').exists())

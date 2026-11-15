@@ -24,7 +24,7 @@ ROOT=Path(__file__).resolve().parent
 RUNTIME=ROOT/'runtime/models'
 CONFIG=ROOT/'models.json'
 SUITE=hashlib.sha256(b'\0'.join((ROOT/name).read_bytes() for name in
-    ('model_cases.py','model_bench.py','model_manager.py','models.json'))).hexdigest()
+    ('model_cases.py','model_bench.py','model_manager.py','models.json','verification_sandbox.py'))).hexdigest()
 CONTROL_CHECK=lambda:None
 
 @contextmanager

@@ -170,6 +170,7 @@ class T(unittest.TestCase):
     def test_read(self):
         for folder in ('/Users/Shared','/Volumes','/Users'):
             with self.assertRaises(PermissionError):os.listdir(folder)
+        os.path.realpath(os.getcwd())
 """)
         result=self.run_check('reads')
         self.assertEqual((result['code'],result['reason']),(0,'exited'),result['output'])

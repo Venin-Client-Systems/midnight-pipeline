@@ -73,7 +73,10 @@ def stale_holds(value,meta,instant):
     if value['paused'] or not value['active_window'] or value['installing']:
         meta['held_projects']={};return []
     now=instant.timestamp();held=meta.setdefault('held_projects',{});seen=set()
-    subjects=[(p['id'],p.get('status',{}).get('phase',''),str(p.get('status',{}).get('detail',''))) for p in value['projects'] if not p['paused']]
+    from control_status import backlog_finished
+    def reason(status):return (status.get('planning') or {}).get('reason') if isinstance(status.get('planning'),dict) else status.get('detail','')
+    subjects=[(p['id'],p.get('status',{}).get('phase',''),str(p.get('status',{}).get('detail',''))) for p in value['projects']
+              if not p['paused'] and not backlog_finished(p.get('status',{}).get('phase',''),reason(p.get('status',{})))]
     controller=value.get('controller') or {}
     subjects.append(('midnight',controller.get('phase',''),str(controller.get('detail',''))))
     for ident,phase,detail in subjects:

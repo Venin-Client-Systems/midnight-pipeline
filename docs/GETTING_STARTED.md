@@ -219,6 +219,7 @@ If you have the Claude or Codex command-line tool installed and signed in, Midni
 | `Coordinator has owner changes; no new action launched` | There is a changed or new file inside `~/Developer/midnight`. Midnight only runs from a clean checkout: `git -C ~/Developer/midnight status`, then remove, commit or discard what it lists |
 | `Selected local model is missing`, or a message that the model's digest changed | The pinned model was removed or updated. Run `midnight setup --model <name>` |
 | Attempts end with `stream_error` or `task_timeout` | The model is too slow, almost always because it does not fit in free memory. Close other apps, or use a smaller model |
+| Tests that start a local server fail with `Operation not permitted` | Tests run with no network by default. If yours need local-only connections, set `"test_loopback": true` in the project's `orchestration/config.json` and commit. Read [SECURITY.md](../SECURITY.md) first |
 | A project never starts | `midnight status` and `midnight repair-status` give the reason; a paused project, a dirty project checkout and a held task are the usual ones |
 | Dashboard does not open | Another program has port 8766. Run `midnight setup --port 8770` |
 

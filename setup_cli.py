@@ -466,7 +466,7 @@ def init(args):
                  if path.exists() and path.read_text(errors='replace') != files[path]]
     if inherited and not getattr(args, 'trust_existing', False):
         raise SetupError(f"{repository} already contains orchestration/{' and orchestration/'.join(inherited)}, "
-                         'and not as Midnight would write them.\n'
+                         'and not as Midnight would write them today (they came with the repository, were edited, or are from an older Midnight).\n'
                          'supervisor.py runs on your Mac with your permissions and config.json sets the sandbox limits, so '
                          'read them first.\nThen either delete the orchestration folder and run init again for fresh files, '
                          'or keep them with: midnight init ' + shlex.quote(str(repository)) + ' --trust-existing')

@@ -200,6 +200,19 @@ class ProjectTests(Fixture):
         self.assertEqual(self.connect(self.path, trust_existing=True), 0)
         self.assertIn('echo owned', (planted / 'supervisor.py').read_text())
 
+    def test_a_module_planted_beside_the_supervisor_is_never_imported(self):
+        self.assertEqual(self.connect(self.path), 0)
+        marker = self.path / 'planted-ran'
+        (self.path / 'orchestration' / 'json.py').write_text(f"open({str(marker)!r}, 'w').write('x')\nraise ImportError('planted')\n")
+        import midnight as M, project_action as PA, inspect
+        for source in (inspect.getsource(M), inspect.getsource(PA)):
+            for line in source.splitlines():
+                if "project['controller']" in line.replace('"', "'") and 'PYTHON' in line:
+                    self.assertIn("-P", line, line.strip())
+        subprocess.run([S.PYTHON, '-P', str(self.path / 'orchestration/supervisor.py'), 'capabilities'], capture_output=True,
+                       env={'MIDNIGHT_SHARED_ROOT': str(Path(S.__file__).resolve().parent), 'PATH': '/usr/bin:/bin', 'HOME': str(self.home)})
+        self.assertFalse(marker.exists())
+
     def test_init_refuses_what_midnight_cannot_work_on(self):
         (self.path / 'scratch.txt').write_text('dirty')
         with self.assertRaisesRegex(S.SetupError, 'uncommitted'):

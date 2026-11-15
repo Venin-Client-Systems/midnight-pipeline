@@ -4,6 +4,14 @@ from evidence_context import sanitize
 from profile_manager import missing_evidence
 
 
+MISSING_EVIDENCE=('cannot read', 'no available tool', 'failure evidence', 'failure log')
+
+
+def backlog_finished(phase, reason):
+    """A finished backlog (nothing planned, and not for want of evidence) is idle, not held."""
+    return phase=='no_useful_work' and not any(x in str(reason or '').lower() for x in MISSING_EVIDENCE)
+
+
 def project_control(status, state, *, instant=None, process_running=False, supervisor_running=False, activity=None, paused=False,owned_phase=None):
     instant = instant or dt.datetime.now(dt.timezone.utc)
     def future(value):
@@ -78,8 +86,8 @@ def project_control(status, state, *, instant=None, process_running=False, super
     current_head = (state.get('quality_decision') or {}).get('head')
     if retry and status.get('phase') in {'quality_wait','no_useful_work'} and (not current_head or not waiting.get('head') or waiting['head']==current_head):
         reason = waiting.get('reason', 'No supported next change was planned.')
-        missing = any(x in reason.lower() for x in ('cannot read', 'no available tool', 'failure evidence', 'failure log'))
-        if status.get('phase')=='no_useful_work' and not missing:
+        missing = any(x in reason.lower() for x in MISSING_EVIDENCE)
+        if backlog_finished(status.get('phase'), reason):
             # A finished backlog is not a fault: say so, and say what to do next.
             result.update(state='waiting',stage='Nothing left to do',code='backlog_finished',next_retry_at=waiting['until'],
                           recovery_owner='automatic',explanation='Every task is finished and no further change was planned. '

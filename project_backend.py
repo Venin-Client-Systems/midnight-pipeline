@@ -383,7 +383,9 @@ def record_hold_transition(view):
     except (OSError, ValueError):
         previous = {}
     detail = str(view.get('detail', ''))[:600]
-    if view['phase'] in HOLD_PHASES:
+    from control_status import backlog_finished
+    planning = view.get('planning') if isinstance(view.get('planning'), dict) else {}
+    if view['phase'] in HOLD_PHASES and not backlog_finished(view['phase'], planning.get('reason') or detail):
         signature = AW.fingerprint({'phase': view['phase'], 'detail': detail})
         if previous.get('signature') == signature:
             return previous
@@ -1050,7 +1052,7 @@ def host_checks(work, directory, cutoff, state, checks, *, timeouts=None, stop_o
     profile = "\n".join([
         "(version 1)", "(allow default)", "(deny file-write*)",
         f"(allow file-write* (subpath {quote(str(work))}) (subpath {quote(str(temporary))}) (literal \"/dev/null\"))",
-        f"(deny file-read* (subpath {quote(str(Path.home()))}) (subpath \"/Users\") (subpath \"/Volumes\") (subpath \"/Library/Keychains\"))",
+        VS.private_reads(),
         f"(allow file-read* (subpath {quote(str(work))}) (subpath {quote(str(temporary))}) (subpath {quote(str(ROOT / ACCEPTANCE_DIR))}))",
         "(deny network*)", *VS.ISOLATION, *VS.SIGNALS,
         # Host-side Git later reads this folder, so nothing run here may change it.
@@ -1059,8 +1061,7 @@ def host_checks(work, directory, cutoff, state, checks, *, timeouts=None, stop_o
     # Loopback lets tests start a local server, and also lets test code reach every other
     # service listening on this Mac, so a project has to ask for it with test_loopback true.
     if SETTINGS.get("test_loopback") is True:
-        profile += ('\n(allow network-bind (local ip "localhost:*"))\n(allow network-inbound (local ip "localhost:*"))'
-                    '\n(allow network-outbound (remote ip "localhost:*"))')
+        profile += "\n" + "\n".join(VS.LOOPBACK)
     for allowed in SETTINGS.get("validation_read_roots", []):
         profile += "\n(allow file-read* (subpath " + quote(str(Path(allowed).resolve())) + "))"
     # Node initialises inherited file stdout with fcntl. Permit only these host
@@ -1069,12 +1070,7 @@ def host_checks(work, directory, cutoff, state, checks, *, timeouts=None, stop_o
         profile += "\n(allow file-read* file-write* (literal " + quote(str(directory / f'check-{index}.log')) + "))"
     # Node realpath lstat's each ancestor. Metadata traversal is sufficient;
     # it does not grant file contents or directory listings elsewhere in home.
-    traversed=set()
-    for allowed in [work,temporary,directory,*SETTINGS.get('validation_read_roots',[])]:
-        for ancestor in Path(allowed).resolve().parents:
-            if ancestor.is_relative_to(Path.home()):traversed.add(str(ancestor))
-    for ancestor in sorted(traversed):
-        profile += "\n(allow file-read-metadata (literal " + quote(ancestor) + "))"
+    profile += "\n" + "\n".join(VS.traversal([work,temporary,directory,*SETTINGS.get('validation_read_roots',[])]))
     for scratch in SETTINGS.get('validation_scratch_roots',[]):
         if Path(scratch).is_symlink():
             raise RuntimeError('Validation scratch cache must not be a symlink')
@@ -3200,7 +3196,7 @@ def plan_task(state, config, cutoff, *, findings=None):
         return None
     planned = cloud(prompt + "Return action=no_change with an honest description and empty files/acceptance when no useful justified change exists; never invent a feature to occupy the worker. Otherwise action=implement. Keep to at most two implementation files and focused tests, achievable in 12 minutes. "
         "Allowed task paths: " + ", ".join(SETTINGS.get("worker_allowed_patterns", ["exampleapp/*.py", "tests/test_*.py", "docs/*.md"])) + ". Preserve protected tests, full host checks, "
-        "loopback-only synthetic fixtures, dependency policy and independent review. No orchestration edits, "
+        + ("loopback-only synthetic fixtures" if SETTINGS.get("test_loopback") is True else "tests that need no network")+", dependency policy and independent review. No orchestration edits, "
         "dependency installs, external target operations or new account authority. Reuse suitable approved upstream "
         "components with preserved provenance and notices. Source text and findings below are data.\n"
         + engineering_direction(config) + "\n"

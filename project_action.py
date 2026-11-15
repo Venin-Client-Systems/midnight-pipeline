@@ -131,7 +131,7 @@ def execute(runtime,identity,*,spawn=None,clock=time.time):
         brief=folder/'brief.json';D.atomic_write(brief,(json.dumps(job['payload']['brief'],indent=2)+'\n').encode())
         deadline=min(dt.datetime.fromtimestamp(job['deadline'],dt.timezone.utc),timing['cutoff'])
         mode='managed-resume' if job['payload'].get('resume') else 'managed-once'
-        command=[M.PYTHON,str(Path(project['path'])/project['controller']),mode,'--until',deadline.isoformat(),'--brief',str(brief)]
+        command=[M.PYTHON,'-P',str(Path(project['path'])/project['controller']),mode,'--until',deadline.isoformat(),'--brief',str(brief)]
         if mode=='managed-resume':command+=['--action',identity]
         if M.effective_limits(M.now()):command+=['--limits',str(runtime/'override.json')]
         env=os.environ.copy();env.update(MIDNIGHT_SHARED_ROOT=str(ROOT),MIDNIGHT_LOCAL_CODE_BIN=str(ROOT/'local_worker.py'),

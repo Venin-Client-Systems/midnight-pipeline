@@ -26,6 +26,10 @@ class ControlStatusTests(unittest.TestCase):
         self.assertEqual((result['state'],result['code']),('waiting','backlog_finished'))
         self.assertIn('midnight add-task',result['explanation'])
         self.assertEqual(project_control({'phase':'quality_wait'},state,instant=self.now)['code'],'planner_hold')
+        from control_status import backlog_finished
+        self.assertTrue(backlog_finished('no_useful_work','Nothing material remains.'))
+        self.assertFalse(backlog_finished('no_useful_work','No available tool can read the failure log.'))
+        self.assertFalse(backlog_finished('manager_hold',''))
 
     def test_verified_active_process_has_precedence_over_old_wait(self):
         result=project_control({'phase':'running'},{'planning_wait':{'until':'2026-11-01T01:00:00+00:00'}},

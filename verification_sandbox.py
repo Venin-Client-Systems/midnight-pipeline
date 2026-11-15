@@ -12,6 +12,21 @@ SERVICES=('com.apple.system.opendirectoryd.libinfo','com.apple.system.DirectoryS
     'com.apple.SystemConfiguration.configd','com.apple.dnssd.service','com.apple.bsd.dirhelper')
 ISOLATION=('(deny mach-lookup)','(allow mach-lookup '+' '.join('(global-name "'+name+'")' for name in SERVICES)+')',
     '(deny appleevent-send)','(deny job-creation)')
+LOOPBACK=('(allow network-bind (local ip "localhost:*"))','(allow network-inbound (local ip "localhost:*"))',
+    '(allow network-outbound (remote ip "localhost:*"))')
+
+
+def private_reads():
+    """Deny every user's files, external drives and keychains; callers then allow their own roots."""
+    return ('(deny file-read* (subpath '+json.dumps(str(Path.home()))+') (subpath "/Users") (subpath "/Volumes") (subpath "/Library/Keychains"))')
+
+
+def traversal(roots):
+    """Metadata-only access to each parent of the allowed roots, so path resolution works without listing them."""
+    parents=sorted({str(parent) for root in roots for parent in Path(root).resolve().parents})
+    return ['(allow file-read-metadata (literal '+json.dumps(parent)+'))' for parent in parents]
+
+
 SIGNALS=('(deny signal)','(allow signal (target self) (target children) (target same-sandbox))')
 
 
@@ -22,7 +37,7 @@ def confined(work,directory,command,log,*,network_ports=(),receipt=None):
     lines=['(version 1)','(allow default)','(deny file-write*)','(deny network*)',
         '(deny signal)','(allow signal (target self) (target children) (target same-sandbox))',
         '(deny process-info*)','(allow process-info* (target same-sandbox))',
-        f'(deny file-read* (subpath {quote(str(Path.home()))}) (subpath "/Users") (subpath "/Volumes") (subpath "/Library/Keychains"))',
+        private_reads(),
         f'(allow file-read* (subpath {quote(str(work))}) (subpath {quote(str(temporary))}) (literal {quote(str(profile))}) (literal {quote(str(log))}))',
         f'(allow file-write* (subpath {quote(str(temporary))}) (literal {quote(str(log))}) (literal "/dev/null"))',
         *ISOLATION]
