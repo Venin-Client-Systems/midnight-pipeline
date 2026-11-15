@@ -105,7 +105,7 @@ git clone https://github.com/Venin-Client-Systems/midnight-pipeline.git ~/Develo
 midnight try
 ```
 
-Creates a tiny demo project, gives it one task and runs it straight away. It took about three minutes on a 32 GB Mac with nothing else using the model; allow much longer if the model is shared or does not fit in memory. When it finishes there is a new commit in `~/Developer/midnight-demo`, written by the local model, checked by your Mac and reviewed before it landed. Follow along with `midnight status` or the dashboard at <http://127.0.0.1:8766>.
+Creates a tiny demo project, gives it one task and runs it straight away. It took about three minutes on a 32 GB Mac with a 27B model and about six on a 16 GB MacBook Air with a 14B model; allow much longer if something else is using the model or memory is short. When it finishes there is a new commit in `~/Developer/midnight-demo`, written by the local model, checked by your Mac and reviewed before it landed. Follow along with `midnight status` or the dashboard at <http://127.0.0.1:8766>.
 
 **3. Point it at your own project**
 

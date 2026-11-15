@@ -79,7 +79,7 @@ What you will see, in order:
 | Review | A separate pass reads the change and accepts it or sends it back with reasons |
 | Delivery | The accepted change is committed to the demo repository |
 
-On a 32 GB Mac with a 27B model and nothing else using it, the whole demo took about three minutes: under a minute for the assessment and under two for the rest. If another program is using the model, or it does not fit in free memory, expect far longer. Watch with `midnight status`, or open the dashboard. When it finishes:
+On a 32 GB Mac with a 27B model and nothing else using it, the whole demo took about three minutes. On a 16 GB MacBook Air (M1) with a 14B model it took about six. If another program is using the model, or it does not fit in free memory, expect far longer. Watch with `midnight status`, or open the dashboard. When it finishes:
 
 ```sh
 git -C ~/Developer/midnight-demo log --oneline     # the new commit

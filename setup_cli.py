@@ -4,8 +4,10 @@ Everything here writes local, untracked state only: `projects.json`, a quality
 profile per project, two launchd services and a `midnight` launcher. Midnight's
 own checkout stays clean, which the controller requires before it starts work.
 """
+import contextlib
 import datetime as dt
 import fnmatch
+import io
 import json
 import os
 from pathlib import Path
@@ -572,10 +574,12 @@ def try_demo(args):
         except SetupError:
             shutil.rmtree(repository, ignore_errors=True)
             raise
-        say(f'Created a demo project at {repository}\n')
-        init(type('Arguments', (), {'path': str(repository), 'id': 'midnight-demo', 'name': 'Midnight demo',
-                                    'why': 'A tiny demo project that shows one full Midnight loop.', 'no_commit': False})())
-        add_task(demo)
+        with contextlib.redirect_stdout(io.StringIO()):
+            init(type('Arguments', (), {'path': str(repository), 'id': 'midnight-demo', 'name': 'Midnight demo',
+                                        'why': 'A tiny demo project that shows one full Midnight loop.', 'no_commit': False})())
+            add_task(demo)
+        say(f'Created a demo project at {repository}\n'
+            f"  It is a ten-line Python package with one test, and one task for Midnight: {DEMO_TASK['title']}.")
     result = run([PYTHON, str(ROOT / 'midnight.py'), 'override', '--for', '90m', '--reason', 'midnight try'])
     if result.returncode != 0:
         raise SetupError('Could not open a run window: ' + (result.stderr or result.stdout).strip())
@@ -583,8 +587,8 @@ def try_demo(args):
     say(('\nMidnight is running now, for up to 90 minutes (the demo and any other connected project).\n' if started else
          '\nThe demo task is ready, but the Midnight service is not loaded. Start it in another terminal with:  midnight tick\n')
         + '  What happens: a first review of the project, then the local model writes the change, the host reruns the tests, a\n'
-        '  second pass reviews it, and an accepted change is committed. About three minutes on a 32 GB Mac when nothing else is\n'
-        '  using the model; much longer if the model is shared or does not fit in memory.\n\n'
+        '  second pass reviews it, and an accepted change is committed. It took about three minutes on a 32 GB Mac and\n'
+        '  six on a 16 GB MacBook Air; much longer if something else is using the model or memory is short.\n\n'
         '  Watch:    midnight status          or open the dashboard\n'
         f'  Result:   git -C {repository} log --oneline\n'
         '  Evidence: midnight report')
