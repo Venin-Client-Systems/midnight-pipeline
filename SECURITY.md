@@ -4,6 +4,8 @@
 
 Please report a suspected vulnerability privately through GitHub: open the repository's **Security** tab and choose **Report a vulnerability**. Do not open a public issue for it. Include the Midnight commit, what you did and what happened.
 
+You can also email VENIN's Security Officer at `security@venin.space`.
+
 ## What Midnight protects against
 
 Midnight lets a local AI model change code on your Mac while nobody is watching. The design assumes the model can be wrong, and can be misled by text in the project it is working on.
