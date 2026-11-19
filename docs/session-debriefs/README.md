@@ -1,6 +1,6 @@
 # Session debriefs
 
-Latest record: [2026-11-15](2026-11-15.md). Dates use Australia/Adelaide.
+Latest record: [2026-11-19](2026-11-19.md). Dates use Australia/Adelaide.
 
 Before substantive work, read the latest dated file, including every session entry, and the repository's agent instructions. Check the directory for a newer file if this link is stale. Verify the current branch, commit and working-tree status before treating historical evidence as current.
 
